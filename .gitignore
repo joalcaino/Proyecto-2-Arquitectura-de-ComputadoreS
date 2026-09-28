@@ -20,3 +20,9 @@ module_stats/
 sim/sim
 *.vcd
 *.csv
+# Proyecto 2: generados por make sim y make hex
+sim/*.vvp
+sim/*.hex
+sw/*.lst
+# El bitstream del juego se versiona como respaldo para la demo
+!game_top.bin

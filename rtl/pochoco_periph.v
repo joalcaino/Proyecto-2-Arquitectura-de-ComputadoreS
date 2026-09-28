@@ -45,6 +45,17 @@ module pochoco_periph (
 
   assign leds_o = led_q;
 
+  // Free-running cycle counter, read-only at offset 0x0C.
+  // +1 every clock edge (25 MHz on the Go Board): 1 tenth of a second =
+  // 2_500_000 counts. Wraps after 2^32 cycles (~171.8 s); software measures
+  // intervals as (now - start) in unsigned arithmetic, so one wrap is harmless.
+  reg [31:0] cycle_q;
+
+  always @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) cycle_q <= 32'b0;
+    else         cycle_q <= cycle_q + 32'd1;
+  end
+
   // Hex to 7-segment decoder function
   function [6:0] hex2seg;
     input [3:0] hex;
@@ -80,6 +91,7 @@ module pochoco_periph (
     else if (access & ~we_i) begin
       case (off)
         6'd2: rdata_o <= {28'b0, btn_i}; // Buttons
+        6'd3: rdata_o <= cycle_q;        // Cycle counter
         default: rdata_o <= 32'b0;
       endcase
     end

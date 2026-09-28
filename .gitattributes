@@ -1,0 +1,2 @@
+# Finales de linea LF en todas las plataformas (Makefile, .hex, .s)
+* text=auto eol=lf
