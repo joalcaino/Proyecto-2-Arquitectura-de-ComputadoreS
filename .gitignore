@@ -23,6 +23,9 @@ sim/sim
 # Proyecto 2: generados por make sim y make hex
 sim/*.vvp
 sim/*.hex
+sim/game_top_post.v
 sw/*.lst
 # El bitstream del juego se versiona como respaldo para la demo
 !game_top.bin
+# Se genera desde informe/ para subir a Overleaf
+informe-overleaf.zip

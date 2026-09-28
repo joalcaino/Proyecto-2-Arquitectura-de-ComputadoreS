@@ -4,9 +4,13 @@
 // Top-level que se sintetiza y programa en la Nandland Go Board (iCE40 HX1K).
 // Solo instancia el SoC y le indica que imagen de memoria cargar al arrancar:
 // sw/game.hex, generado por nuestro assembler (asm/pochoasm.py) desde sw/game.s.
+// MemFile es parametro solo para que la simulacion post-sintesis (make sim-post)
+// pueda cargar la version del juego con tiempos cortos.
 // Los nombres de los puertos coinciden con goboard.pcf.
 
-module game_top (
+module game_top #(
+  parameter MemFile = "sw/game.hex"
+) (
   input  wire       i_Clk,        // 25 MHz
 
   output wire [3:0] o_LED,
@@ -23,7 +27,7 @@ module game_top (
   output wire       o_SPI_MISO
 );
 
-  pochoco_soc #(.MemFile("sw/game.hex")) u_pochoco (
+  pochoco_soc #(.MemFile(MemFile)) u_pochoco (
     .i_Clk        (i_Clk),
 
     .o_LED        (o_LED),

@@ -27,7 +27,9 @@ module game_tb;
     .o_Segment2_E(seg2[4]), .o_Segment2_F(seg2[5]), .o_Segment2_G(seg2[6]),
     .i_SPI_SCLK(1'b0), .i_SPI_MOSI(1'b0), .i_SPI_CS_n(1'b1), .o_SPI_MISO()
   );
-  defparam dut.u_pochoco.MemFile = "sim/game_sim.hex";
+`ifndef POST_SYNTH   // en el circuito sintetizado la RAM ya trae el programa
+  defparam dut.MemFile = "sim/game_sim.hex";
+`endif
 
   `include "sim/seg2hex.vh"
 

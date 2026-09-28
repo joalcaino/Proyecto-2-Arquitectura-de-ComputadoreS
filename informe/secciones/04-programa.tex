@@ -1,0 +1,207 @@
+\section{El programa en assembly}
+\label{sec:programa}
+
+El juego completo está en \code{sw/game.s}, reproducido en el
+anexo~\ref{anx:game}. Ocupa 108 líneas de instrucciones, que el assembler expande a
+114 palabras de máquina (456 de los 2048 bytes de la RAM).
+
+\subsection{Estructura}
+
+El programa se divide en un cuerpo principal con dos bucles anidados, partida y ronda,
+y seis subrutinas (tabla~\ref{tab:subrutinas}).
+
+\begin{enumerate}
+  \item \code{\_start}: carga la base de periféricos en \code{s0} y pone los displays
+        en \code{00}.
+  \item \code{game}: espera que se suelten los botones, parpadea hasta que se apriete
+        uno (\code{wait\_start}), toma ese instante como semilla del generador
+        pseudoaleatorio y reinicia el contador de rondas (\code{a5}) y la suma de
+        tiempos (\code{a4}).
+  \item \code{round}: enciende los cuatro LEDs, espera \code{WAIT\_CYCLES}, espera
+        botones sueltos, elige el objetivo (\code{pick\_target}), lo enciende y lee el
+        contador.
+  \item \code{wait\_press}: espera un botón y lee el contador otra vez. Si el botón es
+        incorrecto salta a \code{wrong}, que escribe \code{0xEE} en los displays y
+        vuelve a \code{round}. Si es correcto, convierte los ciclos a décimas, suma,
+        muestra el tiempo e incrementa \code{a5}.
+  \item Si \code{a5} $<$ \code{ROUNDS} vuelve a \code{round}. Si no, apaga los LEDs,
+        deja ver el último tiempo durante \code{WAIT\_CYCLES}, muestra el promedio y
+        vuelve a \code{game}, donde \code{wait\_start} lo mantiene en pantalla mientras
+        los LEDs parpadean.
+\end{enumerate}
+
+\begin{table}[H]
+\centering
+\caption{Subrutinas de \code{game.s}. Todas son hoja: no llaman a otras.}
+\label{tab:subrutinas}
+\begin{tabularx}{\linewidth}{l l X}
+\toprule
+Subrutina & Entrada / salida & Qué hace \\
+\midrule
+\code{wait\_cycles} & \code{a0} = ciclos & espera \code{a0} ciclos leyendo el contador \\
+\code{wait\_release} & -- & vuelve cuando los botones llevan \code{DEBOUNCE\_CYCLES} sin apretarse \\
+\code{wait\_start} & sale \code{a0} = contador & parpadea 0101/1010 hasta que se apriete un botón \\
+\code{pick\_target} & sale \code{a0} = LED one-hot & avanza el LFSR (\code{s1}) 32 pasos y elige un LED \\
+\code{divu} & \code{a0}, \code{a1} $\to$ \code{a0} & división entera sin signo por restas sucesivas \\
+\code{show\_number} & \code{a0} = número & muestra \code{a0} en decimal en los displays, máximo 99 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Uso de registros}
+
+RV32E tiene solo 16 registros, así que se asignaron de forma fija
+(tabla~\ref{tab:registros}). Como ninguna subrutina llama a otra, el registro de
+retorno \code{ra} nunca se sobrescribe antes de un \code{ret}, y el programa no
+necesita stack: \code{sp}, \code{gp} y \code{tp} quedan sin usar.
+
+\begin{table}[H]
+\centering
+\caption{Asignación de registros.}
+\label{tab:registros}
+\begin{tabular}{lll}
+\toprule
+Registro & Contenido & Vida \\
+\midrule
+\code{s0} & base de periféricos \code{0x80000000} & todo el programa \\
+\code{s1} & estado del LFSR & una partida \\
+\code{a2} & contador al encender el objetivo ($c_0$) & una ronda \\
+\code{a3} & LED objetivo en one-hot & una ronda \\
+\code{a4} & suma de décimas de las rondas correctas & una partida \\
+\code{a5} & rondas correctas & una partida \\
+\code{a0}, \code{a1} & argumentos y resultado de subrutinas & una llamada \\
+\code{t0}--\code{t2} & temporales & una llamada \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Aritmética sin multiplicación, división ni desplazamientos}
+\label{sec:sin-mul}
+
+\begin{itemize}
+  \item \textbf{Multiplicar por 2} es sumar un número consigo mismo:
+        \code{add x, x, x}. Para escribir las decenas en los 4 bits altos del display
+        se multiplican por 16 con cuatro sumas seguidas.
+  \item \textbf{Desplazar un bit a la izquierda} es lo mismo que multiplicar por 2. Así
+        avanza el LFSR (sección~\ref{sec:lfsr}) y así se construye la máscara del LED
+        objetivo: se parte de \code{1} y se duplica tantas veces como indique el índice.
+  \item \textbf{Dividir} es contar cuántas veces cabe el divisor restándolo
+        (\code{divu}). Es lento para cocientes grandes, pero los cocientes del juego son
+        pequeños: 99 como máximo para un tiempo y 99 para el promedio.
+  \item \textbf{Separar decenas y unidades} para los displays es otra división por
+        restas: se resta 10 mientras se pueda, y lo que queda son las unidades.
+  \item \textbf{Leer el bit 31} de un registro no requiere desplazarlo: el bit 31 es el
+        bit de signo, así que vale 1 exactamente cuando el registro es negativo
+        (\code{bge s1, zero, ...}).
+\end{itemize}
+
+\subsection{Generación pseudoaleatoria}
+\label{sec:lfsr}
+
+El LED objetivo se elige con un LFSR (\emph{linear feedback shift register}) de Galois
+de 32 bits con el polinomio $x^{32} + x^{22} + x^{2} + x + 1$, que es de período
+máximo: recorre los $2^{32}-1$ estados distintos de cero antes de repetirse
+\cite{xapp052}. Un paso del LFSR es:
+
+\[
+  s \leftarrow
+  \begin{cases}
+    (s \ll 1) \oplus \texttt{0x00400007} & \text{si el bit 31 de } s \text{ es } 1, \\
+    (s \ll 1) & \text{si no.}
+  \end{cases}
+\]
+
+La constante \code{0x00400007} tiene en 1 los bits 22, 2, 1 y 0, que corresponden a
+los términos del polinomio bajo $x^{32}$. El código~\ref{lst:lfsr} implementa el paso
+sin desplazamientos, con las dos equivalencias de la sección anterior.
+
+\begin{lstlisting}[language=rvasm, caption={Paso del LFSR y elección del LED en \code{pick\_target}.}, label={lst:lfsr}]
+pt_step:
+    add  t0, s1, s1                 # t0 = s1 << 1
+    bge  s1, zero, pt_no_tap        # bit 31 era 0: sin realimentacion
+    xor  t0, t0, t2                 # t2 = LFSR_TAPS
+pt_no_tap:
+    mv   s1, t0
+    addi t1, t1, -1
+    bnez t1, pt_step                # LFSR_STEPS = 32 veces
+
+    andi t0, s1, 3                  # indice del LED: 0..3
+\end{lstlisting}
+
+\paragraph{Semilla.} Un LFSR es determinista: con la misma semilla produce siempre la
+misma secuencia. Si la semilla fuera el contador leído en un punto fijo del programa
+tras el reset, sería la misma en cada encendido y el juego repetiría la secuencia de
+LEDs. Por eso el juego espera que el jugador apriete un botón para empezar
+(\code{wait\_start}), y la semilla es el valor del contador en ese instante. Un humano
+no puede repetir un instante con precisión de 40~ns, así que cada partida parte de
+un estado distinto. Se le aplica un \code{ori} con 1 para que la semilla nunca sea
+cero, el único estado del que un LFSR no sale.
+
+\paragraph{Por qué 32 pasos por ronda.} No todos los bits de la semilla son
+aleatorios. Los bits altos del contador cambian lento: el bit 30 vale 0 durante los
+primeros 43 segundos tras el encendido. Los bits más bajos tampoco son libres, porque
+el bucle que lee el botón lo hace cada una cantidad fija de ciclos. Si el LFSR avanzara
+pocos pasos por ronda, los dos bits que eligen el LED vendrían de los bits poco
+aleatorios de la semilla. Avanzando 32 pasos, una palabra completa, cada bit del
+estado pasa a depender de los bits medios de la semilla, que sí dependen de cuándo
+apretó el jugador.
+
+Esto se comprobó con un modelo del LFSR en Python (\code{sim/lfsr\_modelo.py}), que
+simula 20.000 partidas con semillas como las que produce el programa: apretones entre
+0,5 y 5 segundos tras el encendido, leídos cada $P$ ciclos
+(tabla~\ref{tab:lfsr}). Con 2 pasos por ronda, el primer LED es \emph{siempre} el
+mismo. Con 32 pasos, cada LED sale un 25\,\% de las veces, los 16 pares posibles de LEDs
+consecutivos aparecen con la misma frecuencia, y el número de secuencias distintas
+coincide con el que se espera de un generador ideal: con $4^{10} \approx 10^6$
+secuencias posibles, en 20.000 partidas se esperan unas 190 repeticiones por azar.
+
+\begin{table}[H]
+\centering
+\caption{Modelo de 20.000 partidas. $P$: cada cuántos ciclos lee el programa los botones.}
+\label{tab:lfsr}
+\begin{tabular}{ccccc}
+\toprule
+Pasos por ronda & $P$ & Primer LED: 0 / 1 / 2 / 3 (\%) & Pares distintos & Secuencias distintas \\
+\midrule
+2 & 1 & 100 / 0 / 0 / 0 & 1 de 16 & 14\,133 \\
+2 & 16 & 100 / 0 / 0 / 0 & 1 de 16 & 14\,218 \\
+32 & 1 & 25,5 / 24,9 / 25,0 / 24,6 & 16 de 16 & 19\,809 \\
+32 & 16 & 24,7 / 25,2 / 25,1 / 25,0 & 16 de 16 & 19\,796 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Cada paso toma 12 o 13 ciclos, según si hay realimentación, así que avanzar 32 pasos
+cuesta unos 400 ciclos, 16~$\mu$s. Ocurren antes de encender el objetivo y por lo tanto
+no afectan la medición.
+
+\subsection{Instrucciones utilizadas}
+
+La tabla~\ref{tab:instrucciones} lista las instrucciones de máquina que genera el
+assembler para \code{game.s}, después de expandir las pseudo-instrucciones. El programa
+usa 17 instrucciones distintas de RV32I y ninguna fuera de RV32E.
+
+\begin{table}[H]
+\centering
+\caption{Instrucciones de máquina de \code{game.hex} (114 en total).}
+\label{tab:instrucciones}
+\begin{tabularx}{\linewidth}{l c X}
+\toprule
+Instrucción & Veces & Uso principal \\
+\midrule
+\code{addi} & 32 & constantes (\code{li}), copias (\code{mv}), contadores \\
+\code{jal} & 18 & llamadas (\code{call}) y saltos (\code{j}) \\
+\code{lw} & 12 & leer el contador de ciclos y los botones \\
+\code{add} & 9 & multiplicar por 2 (máscara, LFSR, decenas) y acumular \\
+\code{lui} & 7 & parte alta de constantes grandes (\code{li}) \\
+\code{sub} & 6 & intervalos de tiempo y divisiones por restas \\
+\code{bltu} & 6 & comparaciones sin signo de tiempos y cocientes \\
+\code{jalr} & 6 & retorno de subrutina (\code{ret}) \\
+\code{sw} & 6 & escribir LEDs y displays \\
+\code{beq}, \code{bne} & 3, 3 & \code{beqz}/\code{bnez} y comparación de botón \\
+\code{bge}, \code{bgeu} & 1, 1 & bit 31 del LFSR; saturación a 99 (\code{bleu}) \\
+\code{andi}, \code{ori} & 1, 1 & índice del LED; semilla distinta de cero \\
+\code{xor}, \code{xori} & 1, 1 & realimentación del LFSR; alternar el parpadeo \\
+\bottomrule
+\end{tabularx}
+\end{table}

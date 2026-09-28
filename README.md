@@ -32,6 +32,7 @@ sim/isa_test.s         programa que prueba cada instrucción sobre el procesador
 sim/isa_tb.v           testbench que corre isa_test en el SoC
 sim/game_tb.v          testbench que juega dos partidas completas y revisa cada regla
 goboard.pcf            pines de la Go Board
+pochoco_soc.svg        diagrama del SoC (del repositorio original)
 game_top.bin           bitstream ya compilado (respaldo para la demo)
 informe/               informe en LaTeX
 docs/                  explicación completa del proyecto
@@ -99,6 +100,7 @@ Las constantes están al inicio de `sw/game.s`:
 ```
 make test     # 20 pruebas del assembler
 make sim      # prueba de instrucciones + dos partidas completas en simulación
+make sim-post # la misma partida sobre el circuito ya sintetizado (unos 7 minutos)
 ```
 
 Checkpoint: `make test` termina en `OK`; `make sim` imprime `ISA: OK - las 22 pruebas pasaron` y `JUEGO: OK - todas las reglas se cumplen`.

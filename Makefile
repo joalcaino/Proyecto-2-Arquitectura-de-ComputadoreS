@@ -6,6 +6,7 @@
 #   make hex      solo ensambla: sw/game.s -> sw/game.hex
 #   make test     pruebas del assembler
 #   make sim      simulacion: prueba de instrucciones + dos partidas completas del juego
+#   make sim-post la misma partida sobre el circuito ya sintetizado (unos 7 minutos)
 #   make clean
 #
 # Correr desde la terminal de OSS CAD Suite (environment.ps1 / environment.bat en
@@ -17,7 +18,7 @@ PYTHON ?= python3
 ASM    := asm/pochoasm.py
 SRC    := $(wildcard rtl/*.v rtl/espino_core/*.v)
 
-.PHONY: all prog hex test sim clean
+.PHONY: all prog hex test sim sim-post clean
 
 all: $(TOP).bin
 
@@ -60,6 +61,13 @@ sim: sim/isa_test.hex sim/game_sim.hex
 	iverilog -g2012 $(addprefix -D,$(SIM_CONST)) -o sim/game.vvp -s game_tb $(SRC) sim/game_tb.v $(CELLS_SIM)
 	vvp -n sim/game.vvp
 
+# Simulacion post-sintesis: el mismo testbench sobre el circuito que genera Yosys,
+# hecho de celdas y bloques de RAM de la iCE40. Es lo que se graba en la placa.
+sim-post: sim/game_sim.hex
+	yosys -q -p "read_verilog $(SRC); chparam -set MemFile \"sim/game_sim.hex\" game_top; synth_ice40 -top game_top; write_verilog -noattr sim/game_top_post.v"
+	iverilog -g2012 -DPOST_SYNTH $(addprefix -D,$(SIM_CONST)) -o sim/game_post.vvp -s game_tb sim/game_top_post.v sim/game_tb.v $(CELLS_SIM)
+	vvp -n sim/game_post.vvp
+
 sim/isa_test.hex: sim/isa_test.s $(ASM)
 	$(PYTHON) $(ASM) sim/isa_test.s -o $@
 
@@ -68,4 +76,4 @@ sim/game_sim.hex: sw/game.s $(ASM)
 
 # Con python y no con rm, para que funcione igual en la terminal de Windows.
 clean:
-	$(PYTHON) -c "import glob, os; [os.remove(f) for p in ('*.json', '*.asc', '*.log', '$(TOP).bin', 'sim/*.vvp', 'sim/*.hex', 'sw/*.lst') for f in glob.glob(p)]"
+	$(PYTHON) -c "import glob, os; [os.remove(f) for p in ('*.json', '*.asc', '*.log', '$(TOP).bin', 'sim/*.vvp', 'sim/*.hex', 'sim/game_top_post.v', 'sw/*.lst') for f in glob.glob(p)]"

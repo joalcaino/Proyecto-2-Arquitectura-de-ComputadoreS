@@ -1,0 +1,718 @@
+<meta charset="utf-8">
+<title>Pochoco por dentro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+:root {
+  --bg: #F2F4F1;
+  --surface: #FFFFFF;
+  --ink: #17211D;
+  --muted: #56645E;
+  --line: #D3DAD5;
+  --accent: #0B7A5C;
+  --accent-soft: #DCEFE7;
+  --copper: #9A5A10;
+  --copper-soft: #F5E6D0;
+  --code-bg: #E7ECE8;
+  --f-op: #DCE6F4;
+  --f-reg: #DCEFE7;
+  --f-imm: #F5E6D0;
+  --f-fn: #EAE2F2;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0F1513; --surface: #161E1B; --ink: #E3EBE7; --muted: #97A7A0; --line: #2B3632;
+    --accent: #4CC69D; --accent-soft: #173229; --copper: #E3A452; --copper-soft: #3A2A16;
+    --code-bg: #1B2420; --f-op: #1E2B3D; --f-reg: #173229; --f-imm: #3A2A16; --f-fn: #2C2339;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0F1513; --surface: #161E1B; --ink: #E3EBE7; --muted: #97A7A0; --line: #2B3632;
+  --accent: #4CC69D; --accent-soft: #173229; --copper: #E3A452; --copper-soft: #3A2A16;
+  --code-bg: #1B2420; --f-op: #1E2B3D; --f-reg: #173229; --f-imm: #3A2A16; --f-fn: #2C2339;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.65 var(--body);
+  padding-inline: 16px;
+  padding-block: 32px 64px;
+}
+.layout {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+@media (min-width: 1100px) {
+  .layout { grid-template-columns: 230px minmax(0, 760px); }
+  nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; }
+}
+main { min-width: 0; max-width: 760px; }
+
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.1; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.6rem, 7vw, 3.8rem); letter-spacing: -0.01em; }
+h2 { font-size: 2rem; margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; gap: 14px; align-items: baseline; }
+h2 .num { font-family: var(--mono); font-size: 0.9rem; font-weight: 500; color: var(--accent); }
+h3 { font-size: 1.4rem; margin-top: 36px; }
+p, ul, ol { margin: 14px 0 0; max-width: 68ch; }
+li + li { margin-top: 6px; }
+a { color: var(--accent); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+strong { font-weight: 600; }
+
+.eyebrow { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.15rem; color: var(--muted); margin-top: 18px; }
+
+nav.toc { font-size: 0.9rem; }
+nav.toc ol { list-style: none; padding: 0; margin: 10px 0 0; }
+nav.toc li { margin: 0; }
+nav.toc a { display: block; padding: 4px 0; color: var(--muted); text-decoration: none; }
+nav.toc a:hover { color: var(--ink); }
+nav.toc .n { font-family: var(--mono); color: var(--accent); display: inline-block; width: 2.2em; }
+
+code, kbd { font-family: var(--mono); font-size: 0.9em; }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+pre {
+  font: 0.85rem/1.55 var(--mono);
+  background: var(--code-bg);
+  padding: 14px 16px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 14px 0 0;
+  max-width: 100%;
+}
+pre .c { color: var(--muted); }
+pre .k { color: var(--accent); font-weight: 500; }
+
+.check {
+  margin-top: 16px;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  padding: 12px 16px;
+  max-width: 68ch;
+}
+.check .eyebrow { color: var(--accent); }
+.check pre { background: transparent; padding: 6px 0 0; margin: 0; }
+.check p { margin-top: 6px; }
+
+ol.steps { counter-reset: s; list-style: none; padding: 0; }
+ol.steps > li { counter-increment: s; position: relative; padding-left: 2.6em; margin-top: 14px; }
+ol.steps > li::before {
+  content: counter(s);
+  position: absolute; left: 0; top: 0.1em;
+  font: 500 0.8rem/1.9 var(--mono);
+  width: 1.9em; text-align: center;
+  border: 1px solid var(--line); border-radius: 50%;
+  color: var(--accent);
+}
+
+.table-wrap { overflow-x: auto; margin-top: 16px; max-width: 100%; }
+table { border-collapse: collapse; font-size: 0.93rem; min-width: 100%; }
+th, td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-size: 0.88rem; }
+
+.chain { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 18px; font-size: 0.9rem; }
+.chain .node { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 8px 12px; }
+.chain .node b { display: block; font-family: var(--mono); font-weight: 500; font-size: 0.85rem; }
+.chain .node span { color: var(--muted); font-size: 0.8rem; }
+.chain .arrow { color: var(--accent); font-family: var(--mono); }
+
+/* diagramas de bits: 32 columnas, cada campo ocupa sus bits */
+.bits-wrap { overflow-x: auto; margin-top: 16px; max-width: 100%; }
+.bits { display: grid; grid-template-columns: repeat(32, minmax(15px, 1fr)); min-width: 560px; font-family: var(--mono); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.bits .f { padding: 6px 4px; text-align: center; border-right: 1px solid var(--line); min-width: 0; }
+.bits .f:last-child { border-right: 0; }
+.bits .f .n { display: block; font-size: 0.68rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bits .f .v { display: block; font-size: 0.82rem; letter-spacing: 0.08em; word-break: break-all; }
+.bits .op { background: var(--f-op); }
+.bits .rg { background: var(--f-reg); }
+.bits .im { background: var(--f-imm); }
+.bits .fn { background: var(--f-fn); }
+.bits-cap { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--muted); margin-top: 10px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
+
+.qa details { border-bottom: 1px solid var(--line); padding: 10px 0; max-width: 68ch; }
+.qa summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; gap: 10px; }
+.qa summary::-webkit-details-marker { display: none; }
+.qa summary::before { content: "+"; font-family: var(--mono); color: var(--accent); width: 1em; flex: none; }
+.qa details[open] summary::before { content: "\2212"; }
+.qa details p { margin-top: 8px; padding-left: 1.6em; }
+.qa details pre { margin-left: 1.6em; }
+.qa h3 { margin-top: 28px; }
+
+.states { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; font-family: var(--mono); font-size: 0.85rem; }
+.states span { background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 2px 7px; }
+.states span.fb { border-color: var(--copper); color: var(--copper); }
+
+.note { color: var(--muted); font-size: 0.92rem; }
+footer { margin-top: 72px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="layout">
+<nav class="toc" aria-label="Contenido">
+  <div class="eyebrow">Contenido</div>
+  <ol>
+    <li><a href="#piezas"><span class="n">00</span>Lista de piezas</a></li>
+    <li><a href="#procesador"><span class="n">01</span>El procesador</a></li>
+    <li><a href="#contador"><span class="n">02</span>El contador de ciclos</a></li>
+    <li><a href="#reloj"><span class="n">03</span>Ciclos y décimas</a></li>
+    <li><a href="#juego"><span class="n">04</span>El juego, paso a paso</a></li>
+    <li><a href="#trucos"><span class="n">05</span>Sin multiplicar ni dividir</a></li>
+    <li><a href="#aleatorio"><span class="n">06</span>El aleatorio</a></li>
+    <li><a href="#assembler"><span class="n">07</span>Arma tu assembler</a></li>
+    <li><a href="#pruebas"><span class="n">08</span>Cómo sabemos que funciona</a></li>
+    <li><a href="#demo"><span class="n">09</span>El día de la demo</a></li>
+    <li><a href="#preguntas"><span class="n">10</span>Preguntas de la demo</a></li>
+    <li><a href="#pendiente"><span class="n">11</span>Lo que falta</a></li>
+  </ol>
+</nav>
+
+<main>
+<header>
+  <div class="eyebrow">Arquitectura de Computadores 2026-2 · Proyecto 2 · Grupo 2</div>
+  <h1>Pochoco por dentro</h1>
+  <p class="lede">Cómo funciona el juego de reflejos de punta a punta: el procesador Espino, el contador de ciclos que le agregamos, el programa en assembly y el assembler que lo traduce. Escrito para poder defenderlo en la demo y para poder armar uno propio.</p>
+</header>
+
+<!-- ============================================================ -->
+<h2 id="piezas"><span class="num">00</span>Lista de piezas</h2>
+
+<p>El proyecto vive en <code>Escritorio\Proyecto-2-Arquitectura-de-Computadores</code>. Estas son las piezas y lo que hace cada una.</p>
+
+<div class="table-wrap"><table>
+<tr><th>Archivo</th><th>Qué es</th></tr>
+<tr><td class="mono">sw/game.s</td><td>El juego, en assembly. Texto que escribe una persona.</td></tr>
+<tr><td class="mono">asm/pochoasm.py</td><td>El assembler: traduce <code>game.s</code> a números.</td></tr>
+<tr><td class="mono">sw/game.hex</td><td>El juego en código de máquina: 114 números de 32 bits, uno por línea.</td></tr>
+<tr><td class="mono">rtl/pochoco_periph.v</td><td>Los periféricos del SoC. Aquí agregamos el contador de ciclos.</td></tr>
+<tr><td class="mono">rtl/game_top.v</td><td>El módulo que se sintetiza. Solo instancia el SoC con <code>sw/game.hex</code>.</td></tr>
+<tr><td class="mono">rtl/espino_core/</td><td>El procesador. No lo tocamos.</td></tr>
+<tr><td class="mono">asm/test_pochoasm.py</td><td>20 pruebas del assembler.</td></tr>
+<tr><td class="mono">sim/</td><td>Simulaciones: una prueba de cada instrucción y dos partidas completas del juego.</td></tr>
+<tr><td class="mono">Makefile</td><td>Un comando para cada cosa: <code>make prog</code>, <code>make hex</code>, <code>make test</code>, <code>make sim</code>.</td></tr>
+<tr><td class="mono">informe/</td><td>El informe en LaTeX, para subir a Overleaf.</td></tr>
+</table></div>
+
+<h3>Cómo viaja el programa hasta la placa</h3>
+<div class="chain" role="list">
+  <div class="node" role="listitem"><b>game.s</b><span>texto</span></div><span class="arrow" aria-hidden="true">→</span>
+  <div class="node" role="listitem"><b>pochoasm.py</b><span>assembler</span></div><span class="arrow" aria-hidden="true">→</span>
+  <div class="node" role="listitem"><b>game.hex</b><span>114 palabras</span></div><span class="arrow" aria-hidden="true">→</span>
+  <div class="node" role="listitem"><b>yosys</b><span>$readmemh: la RAM nace con el programa</span></div><span class="arrow" aria-hidden="true">→</span>
+  <div class="node" role="listitem"><b>nextpnr + icepack</b><span>game_top.bin</span></div><span class="arrow" aria-hidden="true">→</span>
+  <div class="node" role="listitem"><b>iceprog</b><span>a la Go Board</span></div>
+</div>
+
+<p>La idea clave: el programa viaja dentro del bitstream. La RAM del SoC se inicializa al sintetizar, leyendo <code>game.hex</code>. Por eso, si cambias una línea de <code>game.s</code>, hay que sintetizar todo de nuevo. <code>make prog</code> lo hace solo y tarda unos 8 segundos.</p>
+
+<!-- ============================================================ -->
+<h2 id="procesador"><span class="num">01</span>El procesador, lo justo para entender</h2>
+
+<p>El Espino es un RISC-V de la variante RV32E. Tres cosas definen cómo se programa.</p>
+
+<h3>Tiene 16 registros</h3>
+<p>Cada registro guarda 32 bits. <code>x0</code> vale siempre 0: escribir en él no hace nada. Cada registro tiene un nombre de uso (ABI) que es solo un apodo:</p>
+<div class="table-wrap"><table>
+<tr><th>Número</th><th>Nombre</th><th>Para qué lo usamos en el juego</th></tr>
+<tr><td class="mono">x0</td><td class="mono">zero</td><td>el cero</td></tr>
+<tr><td class="mono">x1</td><td class="mono">ra</td><td>dirección de retorno de las subrutinas</td></tr>
+<tr><td class="mono">x5–x7</td><td class="mono">t0–t2</td><td>temporales</td></tr>
+<tr><td class="mono">x8</td><td class="mono">s0</td><td>la dirección de los periféricos, 0x80000000</td></tr>
+<tr><td class="mono">x9</td><td class="mono">s1</td><td>el estado del generador aleatorio</td></tr>
+<tr><td class="mono">x10–x15</td><td class="mono">a0–a5</td><td>argumentos de subrutinas y datos de la ronda</td></tr>
+</table></div>
+<p>RV32I normal tiene 32 registros. Si escribes <code>x16</code> o <code>a6</code>, nuestro assembler te dice que no existen en RV32E.</p>
+
+<h3>Todo es memoria</h3>
+<p>No hay instrucciones especiales para los LEDs. Los periféricos son direcciones de memoria: escribir en ellas los controla, leerlas da su estado.</p>
+<div class="table-wrap"><table>
+<tr><th>Dirección</th><th>Qué pasa</th></tr>
+<tr><td class="mono">0x0000_0000</td><td>RAM de 512 palabras. Ahí está el programa, y el procesador parte ejecutando la dirección 0.</td></tr>
+<tr><td class="mono">0x8000_0000</td><td>escribir: los displays. Bits 7:4 el izquierdo, 3:0 el derecho, cada uno como dígito hexadecimal.</td></tr>
+<tr><td class="mono">0x8000_0004</td><td>escribir: los 4 LEDs.</td></tr>
+<tr><td class="mono">0x8000_0008</td><td>leer: los 4 botones (1 = apretado).</td></tr>
+<tr><td class="mono">0x8000_000C</td><td>leer: el contador de ciclos. Esta es la que agregamos.</td></tr>
+</table></div>
+<pre><span class="k">li</span>   s0, 0x80000000     <span class="c"># s0 apunta a los periféricos</span>
+<span class="k">li</span>   t0, 0b0101
+<span class="k">sw</span>   t0, 4(s0)          <span class="c"># escribe 0101 en 0x80000004: se encienden los LEDs 0 y 2</span></pre>
+
+<h3>Cada instrucción tarda 2 o 3 ciclos</h3>
+<p>Lo medimos en simulación, leyendo el contador antes y después de cada tipo de instrucción:</p>
+<div class="table-wrap"><table>
+<tr><th>Instrucción</th><th class="num">Ciclos</th><th>Por qué</th></tr>
+<tr><td><code>add</code>, <code>addi</code>, <code>lui</code>, <code>sw</code>, branch que no salta</td><td class="num">2</td><td>los registros están en una RAM de la FPGA que responde un ciclo después</td></tr>
+<tr><td><code>lw</code></td><td class="num">3</td><td>un ciclo más esperando el dato de memoria</td></tr>
+<tr><td>branch que salta, <code>jal</code>, <code>jalr</code></td><td class="num">3</td><td>la instrucción que ya se estaba buscando se descarta</td></tr>
+</table></div>
+
+<h3>No sabe multiplicar, dividir ni desplazar</h3>
+<p>RV32E no trae multiplicación ni división. Además, en <code>espino_alu.v</code> los shifts están comentados para ahorrar espacio en la FPGA: se decodifican bien pero se ejecutan como una suma. <code>slli a0, t0, 3</code> con <code>t0 = 5</code> da 8, no 40. Lo comprobamos en la prueba 21 de <code>sim/isa_test.s</code>. La sección 05 explica cómo se vive sin eso.</p>
+
+<!-- ============================================================ -->
+<h2 id="contador"><span class="num">02</span>El contador de ciclos</h2>
+
+<p>El SoC original no tiene ninguna forma de medir tiempo. Se podría esperar 3 segundos con un bucle que cuente hasta un número grande, pero su duración depende de cuántas instrucciones tiene y de cuánto tarda cada una. Cualquier cambio al programa lo descalibraría. Y para medir el tiempo de reacción no sirve de nada.</p>
+<p>La solución fue un reloj de hardware: un registro de 32 bits que suma 1 en cada ciclo, y que el programa puede leer. Son estas líneas en <code>rtl/pochoco_periph.v</code>:</p>
+<pre><span class="k">reg</span> [31:0] cycle_q;
+
+<span class="k">always</span> @(<span class="k">posedge</span> clk_i <span class="k">or negedge</span> rst_ni) <span class="k">begin</span>
+  <span class="k">if</span> (!rst_ni) cycle_q &lt;= 32'b0;
+  <span class="k">else</span>         cycle_q &lt;= cycle_q + 32'd1;
+<span class="k">end</span>
+...
+6'd3: rdata_o &lt;= cycle_q;        <span class="c">// lectura en el desplazamiento 0x0C</span></pre>
+<p>El periférico ya tenía un <code>case</code> que elige qué devolver según la dirección (el 2 eran los botones). Agregamos el caso 3. Como cada caso es una palabra de 4 bytes, el caso 3 es la dirección <code>0x80000000 + 3·4 = 0x8000000C</code>.</p>
+
+<h3>La resta que no se rompe</h3>
+<p>El contador llega a su máximo y vuelve a 0 cada 2<sup>32</sup> ciclos, unos 171,8 segundos. Medir un intervalo es restar: ahora menos inicio. Y esa resta da bien aunque el contador haya dado la vuelta en medio. Con un contador de 8 bits (0 a 255) se ve fácil:</p>
+<ol class="steps">
+  <li>Al empezar, el contador marca 250.</li>
+  <li>Pasan 10 ciclos. El contador sube a 255, vuelve a 0 y llega a 4.</li>
+  <li>4 − 250 = −246. En 8 bits sin signo, −246 se escribe igual que 256 − 246 = 10.</li>
+  <li>Da 10: los ciclos que pasaron.</li>
+</ol>
+<p>En 32 bits funciona igual, siempre que el intervalo sea menor que 171,8 s. Por eso el programa compara con <code>bltu</code> y <code>bgeu</code>: la <code>u</code> es <em>unsigned</em>, sin signo.</p>
+
+<div class="check">
+  <div class="eyebrow">Checkpoint</div>
+  <p>El contador ocupa 96 celdas de la FPGA. Con él, el diseño usa 1159 de 1280 (90%), contra 1063 (83%) del SoC original, y sigue llegando a 46 MHz cuando el reloj es de 25 MHz. Esto lo imprime nextpnr en <code>nextpnr.log</code>.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="reloj"><span class="num">03</span>Ciclos y décimas</h2>
+
+<p>La Go Board tiene un reloj de 25 MHz: 25 millones de ciclos por segundo. De ahí sale todo:</p>
+<div class="table-wrap"><table>
+<tr><th>Cantidad</th><th class="num">Ciclos</th><th>Cuenta</th></tr>
+<tr><td>1 ciclo</td><td class="num">1</td><td>1 / 25.000.000 s = 40 ns</td></tr>
+<tr><td>1 décima de segundo</td><td class="num">2.500.000</td><td>25.000.000 × 0,1</td></tr>
+<tr><td>3 segundos</td><td class="num">75.000.000</td><td>25.000.000 × 3</td></tr>
+<tr><td>vuelta del contador</td><td class="num">4.294.967.296</td><td>2<sup>32</sup>, unos 171,8 s</td></tr>
+</table></div>
+
+<p>Para pasar de ciclos a décimas se divide por 2.500.000 y se descarta el resto, como un cronómetro:</p>
+<ol class="steps">
+  <li>El jugador tarda 7.600.000 ciclos.</li>
+  <li>7.600.000 / 2.500.000 = 3,04. Se descarta el ,04.</li>
+  <li>Los displays muestran <code>03</code>: el tiempo real está entre 0,3 y 0,4 s.</li>
+</ol>
+
+<p>El promedio suma las décimas de las 10 rondas y divide por 10, también descartando el resto. Se promedian décimas y no ciclos por dos razones: así es el promedio de los números que el jugador vio, y la suma de 10 tiempos en ciclos podría pasarse de 32 bits si las rondas son lentas.</p>
+<p>Los displays tienen dos dígitos: 10 segundos o más se muestra como <code>99</code>. Pero al promedio entra el valor verdadero.</p>
+
+<!-- ============================================================ -->
+<h2 id="juego"><span class="num">04</span>El juego, paso a paso</h2>
+
+<p>Abre <code>sw/game.s</code> al lado de esta página. Los números de los pasos son los mismos que están en los comentarios del código.</p>
+
+<h3>Lo que vive en los registros</h3>
+<div class="table-wrap"><table>
+<tr><th>Registro</th><th>Contenido</th></tr>
+<tr><td class="mono">s0</td><td>0x80000000, fijo todo el programa</td></tr>
+<tr><td class="mono">s1</td><td>estado del generador aleatorio</td></tr>
+<tr><td class="mono">a2</td><td>el contador cuando se encendió el objetivo (inicio del cronómetro)</td></tr>
+<tr><td class="mono">a3</td><td>el LED objetivo en one-hot: 0001, 0010, 0100 o 1000</td></tr>
+<tr><td class="mono">a4</td><td>suma de las décimas de las rondas correctas</td></tr>
+<tr><td class="mono">a5</td><td>cuántas rondas correctas van</td></tr>
+</table></div>
+
+<h3>La partida</h3>
+<ol class="steps">
+  <li><code>_start</code>: pone <code>s0 = 0x80000000</code> y los displays en <code>00</code>.</li>
+  <li><code>game</code>: espera que nadie apriete, y luego llama a <code>wait_start</code>, que parpadea los LEDs hasta que alguien aprieta un botón. El valor del contador en ese instante es la semilla del aleatorio.</li>
+  <li>Pone en cero <code>a4</code> y <code>a5</code>.</li>
+</ol>
+
+<h3>La ronda</h3>
+<ol class="steps">
+  <li>Enciende los 4 LEDs y llama a <code>wait_cycles</code> con 75.000.000: tres segundos.</li>
+  <li>Llama a <code>wait_release</code>: espera que los botones lleven 20 ms seguidos sin apretarse. Así un botón sostenido no cuenta, y un rebote al soltar no se confunde con una respuesta.</li>
+  <li><code>pick_target</code> elige el LED objetivo. Se enciende solo ese, y la instrucción siguiente lee el contador en <code>a2</code>. Ahí parte el cronómetro.</li>
+  <li>Un bucle lee los botones hasta que alguno esté apretado. Apenas pasa, lee el contador otra vez en <code>t1</code>.</li>
+  <li>Si el botón no es el objetivo, salta a <code>wrong</code>: escribe <code>0xEE</code> en los displays y vuelve al paso 1 de la ronda, sin tocar <code>a4</code> ni <code>a5</code>.</li>
+  <li>Si es el correcto: <code>t1 − a2</code> son los ciclos de reacción. Los divide por 2.500.000, los suma a <code>a4</code>, los muestra y suma 1 a <code>a5</code>.</li>
+  <li>Si <code>a5</code> es menor que 10, otra ronda.</li>
+  <li>Si no: apaga los LEDs, deja ver el último tiempo 3 segundos, divide <code>a4</code> por 10, muestra el promedio y vuelve a <code>game</code>. Ahí <code>wait_start</code> hace parpadear los LEDs con el promedio en pantalla, esperando otra partida.</li>
+</ol>
+
+<p>Este es el corazón de la medición:</p>
+<pre>    <span class="k">sw</span>   a3, LEDS(s0)        <span class="c"># solo el objetivo encendido</span>
+    <span class="k">lw</span>   a2, CYCLES(s0)      <span class="c"># cronómetro: inicio</span>
+wait_press:
+    <span class="k">lw</span>   t0, BUTTONS(s0)
+    <span class="k">beqz</span> t0, wait_press      <span class="c"># nadie aprieta: seguir mirando</span>
+    <span class="k">lw</span>   t1, CYCLES(s0)      <span class="c"># cronómetro: fin</span>
+    <span class="k">bne</span>  t0, a3, wrong       <span class="c"># ¿el botón es el del LED?</span></pre>
+<p>El bucle da una vuelta cada 6 ciclos (<code>lw</code> 3 + <code>beqz</code> 3), o sea 240 ns. El error total de la medición es de unos 10 ciclos: 0,4 µs, doscientas mil veces menos que una décima.</p>
+
+<h3>Las subrutinas</h3>
+<p>Ninguna llama a otra. Por eso <code>ra</code> nunca se pisa antes del <code>ret</code> y el programa no necesita stack.</p>
+<div class="table-wrap"><table>
+<tr><th>Subrutina</th><th>Recibe / devuelve</th><th>Qué hace</th></tr>
+<tr><td class="mono">wait_cycles</td><td>a0 = ciclos</td><td>espera esa cantidad de ciclos mirando el contador</td></tr>
+<tr><td class="mono">wait_release</td><td>–</td><td>vuelve cuando los botones llevan 20 ms sueltos</td></tr>
+<tr><td class="mono">wait_start</td><td>devuelve a0 = contador</td><td>parpadea hasta que aprieten un botón</td></tr>
+<tr><td class="mono">pick_target</td><td>devuelve a0 = LED</td><td>avanza el aleatorio 32 pasos y elige un LED</td></tr>
+<tr><td class="mono">divu</td><td>a0, a1 → a0</td><td>a0 / a1 por restas sucesivas</td></tr>
+<tr><td class="mono">show_number</td><td>a0 = número</td><td>muestra el número en decimal, máximo 99</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="trucos"><span class="num">05</span>Sin multiplicar ni dividir</h2>
+
+<h3>Multiplicar por 2 es sumar</h3>
+<p><code>add t1, t1, t1</code> deja <code>t1 + t1 = 2·t1</code>. Cuatro veces seguidas es ×16. Y como desplazar un bit a la izquierda es multiplicar por 2, eso reemplaza al shift que no tenemos.</p>
+
+<h3>Mostrar el 37 en los displays</h3>
+<p>Cada display dibuja un dígito hexadecimal. Si escribes 37 tal cual (0x25 en hexadecimal), los displays muestran <code>25</code>. Hay que separar decenas y unidades:</p>
+<ol class="steps">
+  <li>Restar 10 mientras se pueda: 37 → 27 → 17 → 7. Se restó 3 veces: 3 decenas.</li>
+  <li>Lo que quedó, 7, son las unidades.</li>
+  <li>Decenas × 16 + unidades = 3 × 16 + 7 = 55 = 0x37.</li>
+  <li>Se escribe 0x37: el display izquierdo recibe el 3 y el derecho el 7.</li>
+</ol>
+
+<h3>Dividir es restar</h3>
+<p><code>divu</code> cuenta cuántas veces cabe el divisor restándolo. 7.600.000 / 2.500.000: se resta 3 veces antes de que quede menos de 2.500.000, así que da 3. Es lento para cocientes grandes, pero aquí el cociente no pasa de 99: unas 99 vueltas de 9 ciclos, 36 µs.</p>
+
+<h3>Mirar el bit 31 sin desplazar</h3>
+<p>El bit 31 es el bit de signo. Vale 1 exactamente cuando el número, leído con signo, es negativo. Así que <code>bge s1, zero, ...</code> pregunta "¿el bit 31 es 0?" sin mover nada.</p>
+
+<!-- ============================================================ -->
+<h2 id="aleatorio"><span class="num">06</span>El aleatorio</h2>
+
+<p>Un LFSR (<em>linear feedback shift register</em>) es un registro que en cada paso se desplaza un bit y, si el bit que se cae era 1, hace un XOR con una constante fija, las <em>taps</em>. Con la constante correcta recorre todos los valores posibles, menos el cero, antes de repetirse.</p>
+
+<h3>Un LFSR de 4 bits, a mano</h3>
+<p>Taps <code>1001</code> (polinomio x<sup>4</sup> + x<sup>3</sup> + 1). La regla: desplaza a la izquierda; si el bit de la izquierda era 1, haz XOR con 1001. Partiendo de 0001, los estados en cobre son los que tuvieron XOR:</p>
+<div class="states" aria-label="Estados del LFSR de 4 bits">
+  <span>0001</span><span>0010</span><span>0100</span><span>1000</span><span class="fb">1001</span><span class="fb">1011</span><span class="fb">1111</span><span class="fb">0111</span><span>1110</span><span class="fb">0101</span><span>1010</span><span class="fb">1101</span><span class="fb">0011</span><span>0110</span><span>1100</span><span class="fb">0001</span>
+</div>
+<p>Son 15 estados distintos (2<sup>4</sup> − 1) y vuelve a 0001. Parece desordenado, pero es completamente predecible si sabes dónde empezó.</p>
+
+<h3>El del juego</h3>
+<p>32 bits, taps <code>0x00400007</code> (polinomio x<sup>32</sup> + x<sup>22</sup> + x<sup>2</sup> + x + 1): recorre 4.294.967.295 estados. Un paso sin shifts:</p>
+<pre>    <span class="k">add</span>  t0, s1, s1          <span class="c"># t0 = s1 desplazado 1 a la izquierda</span>
+    <span class="k">bge</span>  s1, zero, sin_xor   <span class="c"># bit 31 era 0: no hay XOR</span>
+    <span class="k">xor</span>  t0, t0, t2          <span class="c"># t2 = 0x00400007</span>
+sin_xor:
+    <span class="k">mv</span>   s1, t0</pre>
+<p>El LED objetivo son los 2 bits de abajo del estado: <code>s1 &amp; 3</code>, un número de 0 a 3.</p>
+
+<h3>La semilla: el instante en que aprietas</h3>
+<p>Si el LFSR partiera siempre del mismo valor, toda partida tendría la misma secuencia de LEDs, y el enunciado lo prohíbe. Tampoco sirve leer el contador en un punto fijo del programa: tras el reset el programa hace siempre lo mismo, así que leería siempre el mismo número. Por eso el juego espera que aprietes un botón para empezar y usa el contador de ese instante. Nadie puede repetir un instante con precisión de 40 ns.</p>
+
+<h3>Por qué 32 pasos por ronda</h3>
+<p>No todos los bits de la semilla son igual de aleatorios. El bit 30 del contador vale 0 durante los primeros 43 segundos tras encender. Y los bits más bajos dependen de cada cuántos ciclos el bucle mira el botón. Si el LFSR avanza pocos pasos, el LED sale de esos bits malos. Lo simulamos con 20.000 partidas en <code>sim/lfsr_modelo.py</code>:</p>
+<div class="table-wrap"><table>
+<tr><th class="num">Pasos por ronda</th><th>Primer LED (0 / 1 / 2 / 3)</th><th>Secuencias distintas de 20.000</th></tr>
+<tr><td class="num">2</td><td>100% / 0% / 0% / 0%</td><td class="num">14.133</td></tr>
+<tr><td class="num">32</td><td>25,5% / 24,9% / 25,0% / 24,6%</td><td class="num">19.809</td></tr>
+</table></div>
+<p>Con 2 pasos el primer LED de cada partida sería siempre el LED 0. Con 32, cada bit del estado pasa a depender de los bits medios de la semilla, que sí dependen de ti. Y 19.809 es justo lo que da un generador perfecto: con un millón de secuencias posibles, en 20.000 partidas se esperan unas 190 repetidas por pura coincidencia.</p>
+
+<!-- ============================================================ -->
+<h2 id="assembler"><span class="num">07</span>Arma tu assembler</h2>
+
+<p>Un assembler traduce texto a números, una línea a la vez. No es un compilador: un compilador traduce un lenguaje como C a assembly, y el assembler traduce assembly a código de máquina, casi uno a uno. Estos son los pasos para construir uno. Cada paso tiene su checkpoint; <code>asm/pochoasm.py</code> los sigue en este mismo orden.</p>
+
+<div class="legend" aria-label="Colores de los diagramas">
+  <span><i style="background:var(--f-op)"></i>opcode</span>
+  <span><i style="background:var(--f-reg)"></i>registros</span>
+  <span><i style="background:var(--f-fn)"></i>funct3 / funct7</span>
+  <span><i style="background:var(--f-imm)"></i>inmediato</span>
+</div>
+
+<h3>Paso 1. Partir una línea</h3>
+<p>Quita el comentario (todo desde <code>#</code>), saca las etiquetas (lo que termina en <code>:</code>), y lo que queda es el mnemónico y los operandos separados por comas.</p>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>split_line("loop: addi t0, t0, 1  # suma")  →  (['loop'], 'addi', ['t0', 't0', '1'])</pre></div>
+
+<h3>Paso 2. Registros a números</h3>
+<p>Un diccionario: <code>zero → 0</code>, <code>ra → 1</code>, …, <code>a5 → 15</code>, más <code>x0</code> a <code>x15</code>. Todo lo demás es error.</p>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>reg("a0") → 10      reg("x16") → error: no existe en RV32E</pre></div>
+
+<h3>Paso 3. El formato R: <code>add x1, x2, x3</code></h3>
+<p>Todas las instrucciones miden 32 bits. El formato dice qué campo va en qué bits. Los registros van siempre en el mismo lugar, en todos los formatos: así el hardware los puede leer antes de saber qué instrucción es.</p>
+<div class="bits-wrap"><div class="bits">
+  <div class="f fn" style="grid-column: span 7"><span class="n">funct7 · 31:25</span><span class="v">0000000</span></div>
+  <div class="f rg" style="grid-column: span 5"><span class="n">rs2 = x3</span><span class="v">00011</span></div>
+  <div class="f rg" style="grid-column: span 5"><span class="n">rs1 = x2</span><span class="v">00010</span></div>
+  <div class="f fn" style="grid-column: span 3"><span class="n">funct3</span><span class="v">000</span></div>
+  <div class="f rg" style="grid-column: span 5"><span class="n">rd = x1</span><span class="v">00001</span></div>
+  <div class="f op" style="grid-column: span 7"><span class="n">opcode · 6:0</span><span class="v">0110011</span></div>
+</div></div>
+<p>En código es una línea: cada campo se corre a su posición con <code>&lt;&lt;</code> y se juntan con <code>|</code>.</p>
+<pre><span class="k">def</span> enc_r(f7, rs2, rs1, f3, rd, op):
+    <span class="k">return</span> f7 &lt;&lt; 25 | rs2 &lt;&lt; 20 | rs1 &lt;&lt; 15 | f3 &lt;&lt; 12 | rd &lt;&lt; 7 | op</pre>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>add x1, x2, x3  →  0000 0000 0011 0001 0000 0000 1011 0011  =  0x003100b3
+sub x1, x2, x3  →  0x403100b3   (solo cambia funct7: 0100000)</pre></div>
+
+<h3>Paso 4. El formato I: <code>addi x1, x0, -1</code></h3>
+<p>El inmediato ocupa los 12 bits de arriba, en complemento a dos. −1 en 12 bits es <code>111111111111</code>. En Python basta <code>imm &amp; 0xFFF</code>.</p>
+<div class="bits-wrap"><div class="bits">
+  <div class="f im" style="grid-column: span 12"><span class="n">imm[11:0] = −1</span><span class="v">111111111111</span></div>
+  <div class="f rg" style="grid-column: span 5"><span class="n">rs1 = x0</span><span class="v">00000</span></div>
+  <div class="f fn" style="grid-column: span 3"><span class="n">funct3</span><span class="v">000</span></div>
+  <div class="f rg" style="grid-column: span 5"><span class="n">rd = x1</span><span class="v">00001</span></div>
+  <div class="f op" style="grid-column: span 7"><span class="n">opcode</span><span class="v">0010011</span></div>
+</div></div>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>addi x1, x0, -1  →  0xfff00093
+lw   x1, 0(x2)   →  0x00012083   (mismo formato I, otro opcode)</pre></div>
+
+<h3>Paso 5. Las etiquetas: dos pasadas</h3>
+<p>El problema: en <code>call show_number</code>, la subrutina está al final del archivo. Cuando el assembler lee esa línea, todavía no sabe en qué dirección va a quedar <code>show_number</code>. La solución es leer el archivo dos veces:</p>
+<ol class="steps">
+  <li>Primera pasada: un contador que parte en 0 y suma 4 por cada instrucción. Cada etiqueta se anota con el valor del contador en ese momento. No se codifica nada.</li>
+  <li>Segunda pasada: ya se conocen todas las etiquetas. Ahora sí se codifica cada instrucción.</li>
+</ol>
+<p>Ojo con las pseudo-instrucciones en la primera pasada: <code>li</code> puede ocupar 1 o 2 palabras. Hay que expandirlas ahí, o las direcciones de todo lo que viene después quedan corridas.</p>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<p>En <code>game.s</code> la primera pasada deja <code>wrong = 0xA8</code> y <code>show_number = 0x188</code>. Lo puedes ver en el listado: <code>python3 asm/pochoasm.py sw/game.s -l sw/game.lst</code>.</p></div>
+
+<h3>Paso 6. El formato B: <code>bne t0, a3, wrong</code></h3>
+<p>Un branch no guarda la dirección de destino, sino la distancia: destino − dirección del branch. Aquí el branch está en 0x5C y <code>wrong</code> en 0xA8: la distancia es 0x4C = 76 = <code>0 0000 0100 1100</code> en 13 bits.</p>
+<p>El bit 0 siempre es 0 (las instrucciones están en direcciones pares), así que no se guarda. Los otros 12 van repartidos en un orden raro, elegido para que el hardware reutilice cables del formato S:</p>
+<div class="bits-wrap"><div class="bits">
+  <div class="f im" style="grid-column: span 1"><span class="n">12</span><span class="v">0</span></div>
+  <div class="f im" style="grid-column: span 6"><span class="n">imm[10:5]</span><span class="v">000010</span></div>
+  <div class="f rg" style="grid-column: span 5"><span class="n">rs2 = a3</span><span class="v">01101</span></div>
+  <div class="f rg" style="grid-column: span 5"><span class="n">rs1 = t0</span><span class="v">00101</span></div>
+  <div class="f fn" style="grid-column: span 3"><span class="n">bne</span><span class="v">001</span></div>
+  <div class="f im" style="grid-column: span 4"><span class="n">imm[4:1]</span><span class="v">0110</span></div>
+  <div class="f im" style="grid-column: span 1"><span class="n">11</span><span class="v">0</span></div>
+  <div class="f op" style="grid-column: span 7"><span class="n">opcode</span><span class="v">1100011</span></div>
+</div></div>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>0000 0100 1101 0010 1001 0110 0110 0011  =  0x04d29663   (línea 24 de game.hex)</pre></div>
+<p>Cómo saber que el reparto está bien: la prueba <code>test_tipo_b_todos_los_saltos</code> codifica los 4.096 saltos posibles y los decodifica con la fórmula copiada de <code>espino_decoder.v</code>. Tienen que volver iguales.</p>
+
+<h3>Paso 7. El formato J: <code>call show_number</code></h3>
+<p>Igual que B pero con 20 bits de distancia, también revueltos. El <code>call</code> está en 0x08 y <code>show_number</code> en 0x188: distancia 0x180 = 384.</p>
+<div class="bits-wrap"><div class="bits">
+  <div class="f im" style="grid-column: span 1"><span class="n">20</span><span class="v">0</span></div>
+  <div class="f im" style="grid-column: span 10"><span class="n">imm[10:1]</span><span class="v">0011000000</span></div>
+  <div class="f im" style="grid-column: span 1"><span class="n">11</span><span class="v">0</span></div>
+  <div class="f im" style="grid-column: span 8"><span class="n">imm[19:12]</span><span class="v">00000000</span></div>
+  <div class="f rg" style="grid-column: span 5"><span class="n">rd = ra</span><span class="v">00001</span></div>
+  <div class="f op" style="grid-column: span 7"><span class="n">opcode</span><span class="v">1101111</span></div>
+</div></div>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>call show_number  (en 0x08)  →  0x180000ef   (línea 3 de game.hex)</pre></div>
+
+<h3>Paso 8. Pseudo-instrucciones</h3>
+<p>No existen en el hardware: son abreviaturas que el assembler reescribe antes de codificar.</p>
+<div class="table-wrap"><table>
+<tr><th>Escribes</th><th>El assembler pone</th></tr>
+<tr><td class="mono">mv a0, a1</td><td class="mono">addi a0, a1, 0</td></tr>
+<tr><td class="mono">j etiqueta</td><td class="mono">jal zero, etiqueta</td></tr>
+<tr><td class="mono">call etiqueta</td><td class="mono">jal ra, etiqueta</td></tr>
+<tr><td class="mono">ret</td><td class="mono">jalr zero, 0(ra)</td></tr>
+<tr><td class="mono">beqz t0, etiqueta</td><td class="mono">beq t0, zero, etiqueta</td></tr>
+<tr><td class="mono">bleu a0, t0, etiqueta</td><td class="mono">bgeu t0, a0, etiqueta  (operandos al revés)</td></tr>
+<tr><td class="mono">nop</td><td class="mono">addi zero, zero, 0</td></tr>
+</table></div>
+
+<h3>Paso 9. <code>li</code> y la trampa del 0x800</h3>
+<p><code>li</code> carga un número de 32 bits. <code>addi</code> solo lleva 12 bits, así que un número grande se parte en dos: <code>lui</code> pone los 20 bits de arriba y <code>addi</code> suma los 12 de abajo. La trampa es que <code>addi</code> lee sus 12 bits con signo. Mira qué pasa con 0x12345800:</p>
+<ol class="steps">
+  <li>Forma ingenua: <code>lui a0, 0x12345</code> deja 0x12345000.</li>
+  <li><code>addi a0, a0, 0x800</code>: 0x800 tiene el bit 11 en 1, así que <code>addi</code> lo lee como −2048.</li>
+  <li>Resultado: 0x12345000 − 0x800 = 0x12344800. Incorrecto.</li>
+  <li>La corrección: si el bit 11 de la parte baja es 1, se le suma 1 a la parte alta. <code>lui a0, 0x12346</code> y <code>addi a0, a0, -2048</code> dan 0x12346000 − 0x800 = 0x12345800.</li>
+</ol>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>li a0, 75000000   (0x047868C0: parte baja 0x8C0, bit 11 en 1)
+  →  lui  a0, 0x4787          0x04787537
+     addi a0, a0, -1856       0x8c050513
+     0x04787000 − 1856 = 75.000.000</pre></div>
+
+<h3>Paso 10. Errores con número de línea</h3>
+<p>Cada vez que algo no calza (registro que no existe, inmediato que no cabe, etiqueta que no está), se anota el error con su línea y se sigue revisando. Al final se muestran todos juntos, y si hubo alguno no se escribe el <code>.hex</code>.</p>
+<pre>malo.s:3: error: 'x16' no existe en RV32E: solo hay 16 registros (x0-x15)
+    add  x16, a0, a1
+malo.s:7: error: inmediato de 12 bits fuera de rango: 3000 (permitido -2048 a 2047)
+    addi t0, t0, 3000
+3 error(es); no se escribio ningun archivo.</pre>
+
+<h3>Paso 11. Escribir el .hex</h3>
+<p>Una palabra por línea, 8 dígitos hexadecimales: <code>f'{w:08x}'</code>. La línea k queda en la dirección 4k de la RAM.</p>
+<div class="check"><div class="eyebrow">Checkpoint final</div>
+<p>Los tres ejemplos del repo original (<code>blink.s</code>, <code>7seg.s</code>, <code>buttons_leds.s</code>) venían con su .hex hecho por el assembler oficial de GNU. Si tu assembler da exactamente lo mismo, vas bien. El nuestro da las mismas 31 palabras.</p></div>
+
+<!-- ============================================================ -->
+<h2 id="pruebas"><span class="num">08</span>Cómo sabemos que funciona</h2>
+
+<p>Cuatro niveles, cada uno más completo que el anterior.</p>
+<ol class="steps">
+  <li><code>make test</code>: 20 pruebas del assembler. Las dos importantes comparan contra cosas que no escribimos nosotros: la salida del assembler de GNU, y las fórmulas del decodificador del procesador para cada inmediato posible (más de un millón).</li>
+  <li><code>make sim</code>, primera parte: <code>sim/isa_test.s</code> prueba cada instrucción corriendo en el procesador simulado. Si el assembler codifica mal un bit, el procesador ejecuta otra cosa y la prueba falla. Lo comprobamos rompiendo el assembler a propósito dos veces: las dos veces falló.</li>
+  <li><code>make sim</code>, segunda parte: <code>sim/game_tb.v</code> juega dos partidas completas mirando solo los LEDs y los displays, con botones que rebotan. Usa el mismo <code>game.s</code> con tiempos cortos (<code>-D WAIT_CYCLES=20000</code>), porque simular 3 segundos reales son 75 millones de ciclos.</li>
+  <li><code>make sim-post</code>: la misma partida, pero sobre el circuito que genera Yosys, hecho de las celdas y bloques de RAM de la iCE40. Es lo que de verdad se graba en la placa. Da exactamente lo mismo que el RTL. Tarda unos 7 minutos.</li>
+</ol>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>make test   →  Ran 20 tests ... OK
+make sim    →  ISA: OK - las 22 pruebas pasaron
+               ronda 3: LED 3, 12 decimas -> displays 12
+               ronda 5: LED 1, 120 decimas -> displays 99
+               promedio: 181 / 10 = 18 decimas -> displays 18
+               JUEGO: OK - todas las reglas se cumplen</pre></div>
+<p class="note">Lo que la simulación no prueba: la placa real. Los pines, los botones físicos y el driver USB solo se prueban programando la Go Board.</p>
+
+<!-- ============================================================ -->
+<h2 id="demo"><span class="num">09</span>El día de la demo</h2>
+
+<h3>Lista de piezas</h3>
+<ul>
+  <li>La Go Board y su cable USB.</li>
+  <li>Un computador con OSS CAD Suite y make.</li>
+  <li>El repo. <code>game_top.bin</code> ya compilado viene incluido, por si algo falla al compilar allá.</li>
+</ul>
+
+<h3>Lo que hay que mostrar</h3>
+<ol class="steps">
+  <li>La fase de tres segundos con los cuatro LEDs.</li>
+  <li>Una ronda correcta: el LED objetivo y el tiempo en los displays.</li>
+  <li>Diez rondas correctas y el promedio.</li>
+  <li>Un botón incorrecto: <code>EE</code> y la ronda se repite.</li>
+</ol>
+
+<h3>Simulacro: cambiar una constante</h3>
+<p>Te van a pedir cambiar una constante, regenerar <code>game.hex</code> y volver a mostrarlo. Practícalo antes:</p>
+<ol class="steps">
+  <li>Abre la terminal de OSS CAD Suite: en PowerShell, <code>&amp; "$HOME\oss-cad-suite\environment.ps1"</code>.</li>
+  <li>Ve a la carpeta del proyecto.</li>
+  <li>En <code>sw/game.s</code>, cambia <code>.equ ROUNDS, 10</code> por <code>.equ ROUNDS, 3</code>.</li>
+  <li>Ejecuta <code>make prog</code>.</li>
+  <li>Juega 3 rondas. El promedio aparece después de la tercera, y divide por 3.</li>
+  <li>Deja <code>ROUNDS</code> en 10 otra vez.</li>
+</ol>
+<div class="check"><div class="eyebrow">Checkpoint</div>
+<pre>python3 asm/pochoasm.py sw/game.s -o sw/game.hex -l sw/game.lst
+sw/game.s -> sw/game.hex: 114 palabras (456 de 2048 bytes)
+...
+VERIFY OK</pre></div>
+<p>Otros cambios que pueden pedir: <code>WAIT_CYCLES</code> a 125000000 (5 s), o <code>ERROR_CODE</code> a 0xFF. Todos funcionan igual: editar la línea y <code>make prog</code>.</p>
+
+<h3>Si algo falla</h3>
+<ul>
+  <li><code>Can't find iCE FTDI USB device</code>: falta el driver WinUSB en Windows (Zadig, "Interface 0"), o en WSL falta <code>usbipd attach</code>.</li>
+  <li>Aprietas el botón del LED encendido y sale <code>EE</code>: los botones no están donde creemos. Revisa en <code>goboard.pcf</code> qué pin es cada <code>i_Switch</code>.</li>
+  <li>No compila en el computador de allá: programa directo el respaldo con <code>iceprog game_top.bin</code>.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="preguntas"><span class="num">10</span>Preguntas de la demo</h2>
+<p>Intenta responder cada una antes de abrirla.</p>
+
+<div class="qa">
+<h3>Hardware</h3>
+<details><summary>¿Qué modificaron del procesador o del SoC?</summary>
+<p>Dos cosas. Un contador de ciclos de 32 bits en <code>pochoco_periph.v</code>, legible en 0x8000000C, y el módulo <code>game_top.v</code> que instancia el SoC con <code>sw/game.hex</code>. El procesador mismo no se tocó. El primer commit del repo es el código original, así que <code>git diff</code> muestra exactamente el cambio.</p></details>
+
+<details><summary>¿Por qué un contador de hardware y no un bucle de espera?</summary>
+<p>Un bucle dura según cuántas instrucciones tiene y cuánto tarda cada una (2 o 3 ciclos). Cualquier cambio al programa lo descalibraría, y además no sirve para medir cuánto tardó alguien. El contador cuenta ciclos de reloj pase lo que pase en el programa.</p></details>
+
+<details><summary>¿Qué pasa cuando el contador se desborda?</summary>
+<p>Vuelve a 0 cada 2<sup>32</sup> ciclos, 171,8 s. No importa, porque siempre se mide restando (ahora − inicio) en 32 bits sin signo, y esa resta da la cantidad correcta aunque haya dado la vuelta. Solo fallaría un intervalo de más de 171,8 s.</p></details>
+
+<details><summary>¿Cuánto espacio ocupa el contador? ¿Por qué no activaron los shifts?</summary>
+<p>96 celdas: el diseño pasó de 1063 a 1159 de 1280 (83% a 90%). Un desplazador de 32 bits costaría del orden de cien celdas más, y el juego se puede escribir sin shifts.</p></details>
+
+<details><summary>¿Cómo llega el programa a la FPGA?</summary>
+<p>La RAM de <code>pochoco_ram.v</code> tiene un <code>$readmemh(MemFile)</code>. Yosys lee <code>game.hex</code> al sintetizar y lo pone como contenido inicial de los bloques de RAM. El programa queda dentro del bitstream, y al encender el procesador parte ejecutando la dirección 0.</p></details>
+
+<details><summary>¿Cuántos ciclos tarda una instrucción?</summary>
+<p>2 ciclos las de ALU, <code>lui</code>, <code>sw</code> y los branches que no saltan. 3 los <code>lw</code>, los branches que saltan y los saltos. El banco de registros es una RAM de la FPGA que entrega el dato un ciclo después; los loads esperan uno más por la memoria; un salto descarta la instrucción que ya se estaba buscando.</p></details>
+
+<details><summary>¿A qué frecuencia funciona? ¿Cómo lo saben?</summary>
+<p>El reloj de la Go Board es de 25 MHz. nextpnr reporta una frecuencia máxima de unos 46 MHz para nuestro diseño, y el Makefile le pasa <code>--freq 25</code>, así que la compilación fallaría si no se alcanzaran los 25 MHz.</p></details>
+
+<h3>El juego</h3>
+<details><summary>¿Cómo convierten ciclos a décimas?</summary>
+<p>Una décima son 25.000.000 × 0,1 = 2.500.000 ciclos. Se divide la diferencia de ciclos por 2.500.000 con restas sucesivas, descartando el resto. 7.600.000 ciclos son 3 décimas.</p></details>
+
+<details><summary>¿Cómo dividen si el procesador no tiene división?</summary>
+<p>Restando: se cuenta cuántas veces cabe el divisor. El cociente nunca pasa de unos 99, así que son como mucho unas 99 vueltas de 9 ciclos, 36 µs. Y ocurre después de leer el contador, así que no afecta la medición.</p></details>
+
+<details><summary>¿Cuándo parte y cuándo termina el cronómetro? ¿Qué error tiene?</summary>
+<p>Parte en la instrucción siguiente a la que enciende el LED objetivo, y termina en la siguiente a la que detecta el botón. El bucle que mira el botón da una vuelta cada 6 ciclos. El error total es de unos 10 ciclos, 0,4 µs.</p></details>
+
+<details><summary>¿Por qué el cronómetro no parte con los cuatro LEDs?</summary>
+<p>El enunciado dice "en el mismo instante lógico en que comienza la ronda". Lo interpretamos como el instante en que aparece el estímulo, el LED objetivo. Si partiera con los cuatro LEDs, todos los tiempos incluirían los 3 segundos fijos. Está explicado en el informe.</p></details>
+
+<details><summary>¿Cómo calculan el promedio?</summary>
+<p>Suman las décimas de cada ronda correcta en <code>a4</code> y al final dividen por <code>ROUNDS</code>. Se suman décimas y no ciclos porque así es el promedio de los números que viste, y porque 10 tiempos en ciclos podrían pasarse de 32 bits.</p></details>
+
+<details><summary>¿Qué pasa si aprieto un botón equivocado? ¿Y dos a la vez?</summary>
+<p>Los displays muestran EE y la ronda se repite desde los 4 LEDs. <code>a4</code> y <code>a5</code> no cambian, así que las rondas correctas se conservan. Dos botones a la vez tampoco son iguales a la máscara del objetivo, así que también es error.</p></details>
+
+<details><summary>¿Qué pasa si mantengo un botón apretado antes de que aparezca el LED?</summary>
+<p>No cuenta como error: durante los 4 LEDs los botones no se miran. Pero el objetivo no aparece hasta que los botones llevan 20 ms sueltos (<code>wait_release</code>). Así no se puede hacer trampa y un rebote al soltar no se lee como respuesta.</p></details>
+
+<details><summary>¿Cómo muestran un número decimal si los displays son hexadecimales?</summary>
+<p>Separan decenas y unidades restando 10, y escriben decenas × 16 + unidades. Para 37 escriben 0x37. El × 16 son cuatro sumas <code>add t1, t1, t1</code>.</p></details>
+
+<details><summary>¿Cómo generan el LED al azar? ¿Por qué no se repite la secuencia?</summary>
+<p>Un LFSR de Galois de 32 bits con taps 0x00400007, de período 2<sup>32</sup> − 1. La semilla es el contador en el instante en que el jugador aprieta para empezar, que nunca se repite. Cada ronda avanza el LFSR 32 pasos y el LED son los 2 bits de abajo.</p></details>
+
+<details><summary>¿Por qué 32 pasos y no 1?</summary>
+<p>Con pocos pasos, el LED sale de los bits de la semilla que no son aleatorios: los altos del contador aún son 0 en los primeros 43 s. El modelo de 20.000 partidas mostró que con 2 pasos el primer LED es siempre el mismo. Con 32, cada LED sale 25% de las veces.</p></details>
+
+<details><summary>¿Cómo hacen un shift si los shifts no funcionan?</summary>
+<p>Desplazar a la izquierda un bit es multiplicar por 2, o sea <code>add x, x, x</code>. Y para mirar el bit 31 se pregunta si el número es negativo: <code>bge s1, zero, ...</code>.</p></details>
+
+<h3>El assembler</h3>
+<details><summary>¿Qué hace un assembler? ¿Es un compilador?</summary>
+<p>Traduce assembly a código de máquina, casi una línea a una instrucción de 32 bits. Un compilador traduce un lenguaje de alto nivel, como C, a assembly.</p></details>
+
+<details><summary>¿Por qué lee el archivo más de una vez?</summary>
+<p>Por las etiquetas que se usan antes de definirse, como <code>call show_number</code>. La primera pasada solo calcula la dirección de cada etiqueta; la segunda codifica, ya con todas las direcciones conocidas. Hay una pasada cero que evalúa las <code>.equ</code>.</p></details>
+
+<details><summary>¿Qué guarda un branch: la dirección de destino?</summary>
+<p>No: la distancia, destino − dirección del branch. El procesador se la suma al pc. Negativa es un salto hacia atrás, como el de un bucle. El bit 0 no se guarda porque siempre es 0.</p></details>
+
+<details><summary>Codifica <code>add x1, x2, x3</code> en la pizarra.</summary>
+<p>Formato R: funct7 0000000, rs2 00011, rs1 00010, funct3 000, rd 00001, opcode 0110011. Junto: 0000 0000 0011 0001 0000 0000 1011 0011 = 0x003100B3.</p></details>
+
+<details><summary>¿Cómo traducen <code>li</code> con un número grande?</summary>
+<p><code>lui</code> con los 20 bits de arriba y <code>addi</code> con los 12 de abajo. Como <code>addi</code> lee su inmediato con signo, si el bit 11 es 1 hay que sumarle 1 a la parte alta. Si el número cabe en 12 bits basta un <code>addi</code>, y si los 12 de abajo son 0 basta el <code>lui</code>.</p></details>
+
+<details><summary>¿Qué errores detecta el assembler?</summary>
+<p>Registro inexistente o fuera de RV32E, instrucción desconocida, cantidad de operandos, inmediato o salto fuera de rango, etiqueta no definida o repetida, constante no definida o repetida, directiva no soportada y programa más grande que la RAM. Además avisa si usas un shift, porque el Espino lo ejecuta como suma.</p></details>
+
+<details><summary>¿Cómo probaron que el assembler codifica bien?</summary>
+<p>Comparando contra tres cosas que no escribimos: la salida del assembler de GNU para los ejemplos del repo, idéntica; las fórmulas del decodificador de <code>espino_decoder.v</code> para cada inmediato posible; y el procesador mismo, corriendo un programa que prueba cada instrucción.</p></details>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="pendiente"><span class="num">11</span>Lo que falta</h2>
+<ol class="steps">
+  <li>Probar en la placa real. Todo está verificado en simulación y sintetiza bien, pero nunca se ha programado una Go Board con este diseño. Revisa en especial que el botón de cada LED sea el que corresponde.</li>
+  <li>Subir el informe a Overleaf (el zip <code>informe-overleaf.zip</code>) y compilarlo. No hay LaTeX en este computador, así que no se ha compilado nunca.</li>
+  <li>Revisar la declaración de uso de IA y firmarla. Las firmas quedaron en blanco a propósito: cada uno firma lo que declara.</li>
+  <li>Confirmar los nombres de los ayudantes en la portada (se copiaron del Proyecto 1).</li>
+  <li>Crear el repo en GitHub y hacer push. El historial local ya tiene los commits.</li>
+</ol>
+
+<footer>Proyecto 2, Arquitectura de Computadores 2026-2, Universidad de los Andes. El SoC y el core Espino son de Nicolás Villegas (nic0villegasc/pochoco_soc).</footer>
+</main>
+</div>

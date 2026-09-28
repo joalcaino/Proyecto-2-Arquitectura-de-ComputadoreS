@@ -1,0 +1,141 @@
+\section{Temporización y medición de tiempo}
+\label{sec:temporizacion}
+
+\subsection{Frecuencia de reloj y conversión de ciclos a décimas}
+
+La Go Board tiene un oscilador de 25~MHz conectado al pin 15 de la FPGA, y el SoC usa
+ese reloj sin dividirlo. Todas las cantidades de tiempo del juego se derivan de ese
+valor:
+
+\begin{align*}
+  f_{\text{clk}} &= 25\,000\,000~\text{Hz}, \qquad T_{\text{clk}} = \frac{1}{f_{\text{clk}}} = 40~\text{ns} \\[4pt]
+  N_{\text{décima}} &= f_{\text{clk}} \cdot 0{,}1~\text{s} = 2\,500\,000~\text{ciclos} \\[4pt]
+  N_{3\,\text{s}} &= f_{\text{clk}} \cdot 3~\text{s} = 75\,000\,000~\text{ciclos}
+\end{align*}
+
+Si el contador marca $c_0$ cuando se enciende el LED objetivo y $c_1$ cuando se detecta
+el botón, el tiempo de respuesta en décimas de segundo es
+
+\[
+  t = \left\lfloor \frac{(c_1 - c_0) \bmod 2^{32}}{2\,500\,000} \right\rfloor .
+\]
+
+\begin{itemize}
+  \item \textbf{La resta se hace sin signo, en 32 bits} (\code{sub}, que da el
+        resultado módulo $2^{32}$). Si el contador dio la vuelta entre $c_0$ y $c_1$,
+        la resta sigue dando la cantidad correcta de ciclos. El único caso que falla
+        es una espera de más de $2^{32}$ ciclos, unos 171,8 segundos.
+  \item \textbf{La división trunca}, como un cronómetro: 0,29~s se muestra como
+        \code{02}. Así un valor mostrado de $n$ décimas significa que el tiempo real
+        está entre $n$ y $n+1$ décimas.
+  \item \textbf{La división se hace por restas sucesivas} (subrutina \code{divu}),
+        porque el procesador no tiene instrucción de división. Cada vuelta del bucle
+        toma 9 ciclos, así que convertir 9,9~s (99 vueltas) toma unos 900 ciclos,
+        36~$\mu$s. Esa cuenta ocurre después de leer $c_1$, así que no afecta la
+        medición.
+\end{itemize}
+
+Las constantes están con nombre al comienzo de \code{game.s}
+(código~\ref{lst:constantes}). Cambiar la frecuencia del reloj solo exige cambiar
+\code{WAIT\_CYCLES} y \code{TENTH\_CYCLES}.
+
+\begin{lstlisting}[language=rvasm, caption={Constantes de tiempo en \code{sw/game.s}.}, label={lst:constantes}]
+.equ ROUNDS,          10          # respuestas correctas por partida
+.equ WAIT_CYCLES,     75000000    # fase con los 4 LEDs: 3 s = 3 * 25_000_000
+.equ TENTH_CYCLES,    2500000     # ciclos en una decima de segundo = 25_000_000 / 10
+.equ DEBOUNCE_CYCLES, 500000      # 20 ms con los botones sueltos antes de mostrar el objetivo
+.equ BLINK_CYCLES,    6250000     # 0,25 s: cada cuanto cambian los LEDs mientras se espera
+\end{lstlisting}
+
+\subsection{Espera de tres segundos}
+
+La subrutina \code{wait\_cycles} (código~\ref{lst:wait}) lee el contador al entrar y
+vuelve cuando la diferencia con la lectura actual alcanza el valor pedido en
+\code{a0}. La comparación \code{bltu} es sin signo, por la misma razón que la resta.
+
+\begin{lstlisting}[language=rvasm, caption={Espera de \code{a0} ciclos.}, label={lst:wait}]
+wait_cycles:
+    lw   t0, CYCLES(s0)             # t0 = inicio
+wc_loop:
+    lw   t1, CYCLES(s0)
+    sub  t1, t1, t0                 # t1 = ciclos transcurridos
+    bltu t1, a0, wc_loop
+    ret
+\end{lstlisting}
+
+Cada vuelta del bucle toma 8 ciclos (\code{lw} 3, \code{sub} 2, \code{bltu} tomado 3),
+así que la espera termina a lo más 8 ciclos, 320~ns, después de cumplirse los
+75.000.000. Tras ella el programa exige además 20~ms seguidos sin ningún botón
+apretado (siguiente subsección). La fase con los cuatro LEDs dura entonces
+$3{,}02$~s si nadie toca los botones, y más si alguien los mantiene apretados, lo que
+cumple el ``al menos tres segundos'' del enunciado.
+
+\subsection{Rebotes de los botones}
+
+Un botón mecánico rebota: al apretarlo o soltarlo, el contacto se abre y cierra varias
+veces durante algunos milisegundos. El juego solo necesita el primer contacto para
+detener el cronómetro, así que los rebotes al apretar no afectan la medición. Los
+rebotes al soltar sí son un problema. Si el jugador suelta el botón justo cuando
+aparece el LED objetivo, un rebote se leería como una pulsación nueva, con un tiempo de
+casi cero.
+
+La subrutina \code{wait\_release} se ejecuta antes de encender el LED objetivo. Vuelve
+solo cuando los botones llevan \code{DEBOUNCE\_CYCLES} (20~ms) seguidos sin apretarse:
+cada lectura con un botón apretado reinicia la cuenta. Así se filtran los rebotes y,
+además, no se puede ``hacer trampa'' dejando un botón apretado antes de que aparezca el
+objetivo.
+
+\subsection{Medición del tiempo de respuesta}
+
+El código~\ref{lst:medicion} muestra el núcleo de la ronda. El cronómetro se inicia
+con la instrucción siguiente a la que enciende el LED objetivo, y se detiene con la
+instrucción siguiente a la que detecta el botón.
+
+\begin{lstlisting}[language=rvasm, caption={Encendido del objetivo y medición.}, label={lst:medicion}]
+    sw   a3, LEDS(s0)               #    solo el objetivo encendido
+    lw   a2, CYCLES(s0)             # 3) y en ese mismo instante parte el cronometro
+wait_press:
+    lw   t0, BUTTONS(s0)
+    beqz t0, wait_press             # 4) esperar un boton
+    lw   t1, CYCLES(s0)             #    fin del cronometro
+    bne  t0, a3, wrong              #    boton incorrecto (o mas de uno a la vez)
+    sub  a0, t1, a2                 # 5) ciclos de reaccion
+\end{lstlisting}
+
+El error de la medición se acota con la tabla~\ref{tab:cpi}:
+
+\begin{itemize}
+  \item Entre que se escribe el LED y se lee $c_0$ pasan del orden de 2 ciclos.
+  \item El bucle \code{wait\_press} da una vuelta cada 6 ciclos (\code{lw} 3 y
+        \code{beqz} tomado 3), así que el botón se detecta a lo más 6 ciclos después de
+        apretarse.
+  \item Entre la detección y la lectura de $c_1$ pasan unos 4 ciclos.
+\end{itemize}
+
+En total el error es de unos 10 ciclos, 0,4~$\mu$s, doscientas mil veces menor que la
+resolución de una décima. La medición es, en la práctica, exacta al ciclo que la
+precede.
+
+\subsection{Promedio}
+\label{sec:promedio}
+
+El programa acumula en el registro \code{a4} las décimas de cada ronda correcta. Tras
+\code{ROUNDS} respuestas correctas, el promedio se calcula con la misma subrutina de
+división:
+
+\[
+  \bar{t} = \left\lfloor \frac{\sum_{i=1}^{\text{ROUNDS}} t_i}{\text{ROUNDS}} \right\rfloor~\text{décimas}.
+\]
+
+Se promedian los tiempos en décimas y no los ciclos porque así el promedio es el de los
+diez números que el jugador vio en los displays. Además, la suma de diez tiempos en
+ciclos puede desbordar 32 bits si las rondas son lentas: $2^{32}$ ciclos son 171,8~s en
+total. La suma en décimas no tiene ese problema.
+
+Los displays tienen dos dígitos, así que un tiempo de 10~s o más se muestra como
+\code{99}. Esa saturación es solo de la visualización: a la suma entra el valor
+verdadero. Por ejemplo, en la simulación de la sección~\ref{sec:verificacion}, una
+ronda de 12,0~s se muestra como \code{99} pero suma 120 décimas al promedio.
+
+Las rondas con botón incorrecto no modifican ni \code{a4} ni el contador de rondas
+\code{a5}: la ronda se repite y solo el intento correcto aporta su tiempo.
