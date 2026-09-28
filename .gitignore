@@ -1,0 +1,22 @@
+# Virtual Environments & Editor Files
+.venv/
+venv/
+.DS_Store
+
+# Python & Test Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# FPGA Synthesis & Bitstream Artifacts (Yosys / nextpnr / icepack)
+*.json
+*.asc
+*.bin
+*.log
+module_stats/
+
+# Simulation Artifacts (Iverilog / GTKWave / Cocotb)
+sim/sim
+*.vcd
+*.csv
