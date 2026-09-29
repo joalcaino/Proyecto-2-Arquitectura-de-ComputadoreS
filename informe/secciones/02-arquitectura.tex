@@ -63,8 +63,10 @@ $\text{decenas}\cdot 16 + \text{unidades}$; por ejemplo, para 37 escribe \code{0
 
 \subsection{Modificaciones al RTL}
 
-Se hicieron dos cambios al hardware, ambos visibles con \code{git diff} desde el primer
-commit del repositorio, que es el código original sin modificar.
+Se hicieron tres cambios al hardware, todos visibles con \code{git diff} desde el primer
+commit del repositorio, que es el código original sin modificar. El tercero corrige un
+defecto del SoC original que solo se manifestó en la placa
+(sección~\ref{sec:placa}).
 
 \paragraph{Contador de ciclos.} El juego necesita medir 3 segundos y tiempos de reacción.
 Un bucle de espera calibrado no sirve para medir, porque su duración depende de qué
@@ -92,6 +94,21 @@ que se sintetiza. Tiene los mismos puertos que la Go Board según \code{goboard.
 solo instancia el SoC con el parámetro \code{MemFile} apuntando a \code{sw/game.hex}.
 El botón $i$ corresponde al LED $i$: \code{i\_Switch[i]} y \code{o\_LED[i]}.
 
+\paragraph{Reset de encendido.} En \code{rtl/pochoco\_soc.v}, el contador que mantiene
+al procesador en reset después de configurar la FPGA pasó de 4 a 12 bits: el procesador
+arranca a los 4.095 ciclos (164~$\mu$s) en vez de a los 15 (0,6~$\mu$s). Con el valor
+original, el juego no funcionaba en la placa aunque todas las simulaciones pasaban. La
+sección~\ref{sec:placa} describe cómo se encontró la causa.
+
+\begin{lstlisting}[language=Verilog, caption={Reset de encendido en \code{pochoco\_soc.v}, con el contador ampliado.}, label={lst:por}]
+  reg  [11:0] por_cnt = 12'b0;           // antes: reg [3:0], hasta 4'hF
+  wire        rst_ni;
+  always @(posedge clk) begin
+    if (por_cnt != 12'hFFF) por_cnt <= por_cnt + 12'd1;
+  end
+  assign rst_ni = (por_cnt == 12'hFFF);
+\end{lstlisting}
+
 \paragraph{Lo que no se cambió.} Se evaluó activar los desplazamientos en el ALU, pero
 el SoC original ya ocupaba el 83\,\% de las celdas lógicas de la FPGA, y un
 desplazador de 32 bits cuesta del orden de cien celdas. El juego se escribió sin
@@ -100,10 +117,11 @@ desplazamientos (sección~\ref{sec:sin-mul}).
 \subsection{Recursos y frecuencia}
 
 La tabla~\ref{tab:recursos} compara el SoC original con el diseño final, ambos
-sintetizados con Yosys y nextpnr \cite{osscad}. El contador agrega 96 celdas lógicas:
-32 flip-flops, la cadena de suma y la entrada nueva del multiplexor de lectura. La
-frecuencia máxima que reporta nextpnr sigue muy por encima de los 25~MHz del reloj de la
-Go Board. El Makefile ejecuta nextpnr con \code{--freq 25}, así que la compilación falla
+sintetizados con Yosys y nextpnr \cite{osscad}. El contador de ciclos agrega 96 celdas
+lógicas: 32 flip-flops, la cadena de suma y la entrada nueva del multiplexor de lectura.
+Los 8 bits extra del reset de encendido agregan otras 14. La frecuencia máxima que reporta
+nextpnr sigue muy por encima de los 25~MHz del reloj de la Go Board, y el analizador
+independiente \code{icetime} de IceStorm da un resultado equivalente. El Makefile ejecuta nextpnr con \code{--freq 25}, así que la compilación falla
 si alguna vez no se alcanzara esa frecuencia.
 
 \begin{table}[H]
@@ -114,9 +132,9 @@ si alguna vez no se alcanzara esa frecuencia.
 \toprule
  & SoC original & Diseño final \\
 \midrule
-Celdas lógicas (de 1280) & 1063 (83\,\%) & 1159 (90\,\%) \\
+Celdas lógicas (de 1280) & 1063 (83\,\%) & 1173 (91\,\%) \\
 Bloques de RAM (de 16) & 12 & 12 \\
-Frecuencia máxima & 45,0~MHz & 46,0~MHz \\
+Frecuencia máxima & 45,0~MHz & 42,8~MHz \\
 \bottomrule
 \end{tabular}
 \end{table}

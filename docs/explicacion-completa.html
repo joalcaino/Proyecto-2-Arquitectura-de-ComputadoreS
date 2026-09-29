@@ -199,6 +199,7 @@ footer { margin-top: 72px; padding-top: 16px; border-top: 1px solid var(--line);
 <tr><td class="mono">asm/pochoasm.py</td><td>El assembler: traduce <code>game.s</code> a números.</td></tr>
 <tr><td class="mono">sw/game.hex</td><td>El juego en código de máquina: 114 números de 32 bits, uno por línea.</td></tr>
 <tr><td class="mono">rtl/pochoco_periph.v</td><td>Los periféricos del SoC. Aquí agregamos el contador de ciclos.</td></tr>
+<tr><td class="mono">rtl/pochoco_soc.v</td><td>El SoC. Aquí alargamos el reset de encendido, sin lo cual el juego no arrancaba en la placa.</td></tr>
 <tr><td class="mono">rtl/game_top.v</td><td>El módulo que se sintetiza. Solo instancia el SoC con <code>sw/game.hex</code>.</td></tr>
 <tr><td class="mono">rtl/espino_core/</td><td>El procesador. No lo tocamos.</td></tr>
 <tr><td class="mono">asm/test_pochoasm.py</td><td>20 pruebas del assembler.</td></tr>
@@ -290,8 +291,38 @@ footer { margin-top: 72px; padding-top: 16px; border-top: 1px solid var(--line);
 
 <div class="check">
   <div class="eyebrow">Checkpoint</div>
-  <p>El contador ocupa 96 celdas de la FPGA. Con él, el diseño usa 1159 de 1280 (90%), contra 1063 (83%) del SoC original, y sigue llegando a 46 MHz cuando el reloj es de 25 MHz. Esto lo imprime nextpnr en <code>nextpnr.log</code>.</p>
+  <p>El contador ocupa 96 celdas de la FPGA. Con él y con el reset alargado (abajo), el diseño usa 1173 de 1280 (91%), contra 1063 (83%) del SoC original, y sigue llegando a 43 MHz cuando el reloj es de 25 MHz. Esto lo imprime nextpnr en <code>nextpnr.log</code>.</p>
 </div>
+
+<h3>El reset de encendido: el problema que solo apareció en la placa</h3>
+<p>Con todas las simulaciones aprobadas, grabamos el juego en la Go Board y los LEDs no se encendían nunca. Los programas de ejemplo del repo original sí funcionaban. Esto fue lo que pasaba:</p>
+<ol class="steps">
+  <li>Al encender, la FPGA se configura y después el SoC mantiene al procesador en reset unos ciclos. En el SoC original eran 15 ciclos: 0,6 µs.</li>
+  <li>Justo después de configurarse, los bloques de RAM de la iCE40 todavía no entregan su contenido. El procesador sale del reset, pide instrucciones y recibe ceros.</li>
+  <li>Un cero es una instrucción ilegal, y el decodificador la trata como si no hiciera nada. El contador de programa sigue avanzando: 4, 8, 12…</li>
+  <li>Cuando la RAM empieza a responder, el procesador está en la mitad del programa, con todos los registros en cero. <code>s0</code> no vale 0x80000000, así que cada escritura a los LEDs cae en la RAM, y el programa queda atrapado en un bucle que espera algo que nunca llega.</li>
+  <li>En un programa corto, esa zona de ceros termina en la parte vacía de la memoria. El contador de programa da la vuelta a los 2 KB, vuelve a 0 y el programa parte bien, unos microsegundos tarde. Por eso los ejemplos del repo funcionaban.</li>
+</ol>
+<p>El arreglo fue una línea: el contador del reset pasó de 4 a 12 bits, así que el procesador arranca a los 4.095 ciclos, 164 µs. Nadie nota esa espera.</p>
+<pre><span class="k">reg</span>  [11:0] por_cnt = 12'b0;           <span class="c">// antes: reg [3:0], hasta 4'hF</span>
+...
+<span class="k">if</span> (por_cnt != 12'hFFF) por_cnt &lt;= por_cnt + 12'd1;
+<span class="k">assign</span> rst_ni = (por_cnt == 12'hFFF);</pre>
+<p>Ninguna simulación lo podía detectar: los modelos de simulación de la RAM entregan su contenido desde el primer ciclo.</p>
+
+<h3>Cómo se encontró</h3>
+<p>Grabando programas de prueba y descartando una causa por vez:</p>
+<div class="table-wrap"><table>
+<tr><th>Prueba en la placa</th><th>Resultado</th><th>Qué descartó o mostró</th></tr>
+<tr><td><code>buttons_leds.s</code> del repo original</td><td>funciona</td><td>procesador, LEDs y botones sanos; botón i = LED i</td></tr>
+<tr><td>parpadeo con el contador + conteo de botones</td><td>funciona</td><td>el contador de ciclos funciona; los botones no tienen ruido</td></tr>
+<tr><td>el juego, deteniéndose en cada marca</td><td>falla en la 3ª instrucción</td><td>el problema está al arrancar, antes de cualquier subrutina</td></tr>
+<tr><td>un programa corto + 110 <code>nop</code> de relleno</td><td>funciona</td><td>no es el tamaño del archivo</td></tr>
+<tr><td>comparar bitstreams que fallan y que funcionan</td><td>idénticos salvo la RAM</td><td>no es temporización ni ruteo (nextpnr e <code>icetime</code> dan más de 42 MHz)</td></tr>
+<tr><td>simular el bitstream reconstruido con <code>icebox_vlog</code></td><td>funciona en simulación</td><td>el bitstream está bien: el problema es físico</td></tr>
+<tr><td>RAM de 256 palabras (otro modo de los bloques)</td><td>falla</td><td>no es el modo de la RAM</td></tr>
+<tr><td>reset de 4.095 ciclos</td><td>funciona</td><td>la causa</td></tr>
+</table></div>
 
 <!-- ============================================================ -->
 <h2 id="reloj"><span class="num">03</span>Ciclos y décimas</h2>
@@ -575,7 +606,7 @@ make sim    →  ISA: OK - las 22 pruebas pasaron
                ronda 5: LED 1, 120 decimas -> displays 99
                promedio: 181 / 10 = 18 decimas -> displays 18
                JUEGO: OK - todas las reglas se cumplen</pre></div>
-<p class="note">Lo que la simulación no prueba: la placa real. Los pines, los botones físicos y el driver USB solo se prueban programando la Go Board.</p>
+<p class="note">Lo que la simulación no prueba: la placa real. El juego pasaba las cuatro simulaciones y aun así no arrancaba en la Go Board, por el reset de encendido (sección 02). Desde el arreglo funciona en la placa.</p>
 
 <!-- ============================================================ -->
 <h2 id="demo"><span class="num">09</span>El día de la demo</h2>
@@ -626,7 +657,13 @@ VERIFY OK</pre></div>
 <div class="qa">
 <h3>Hardware</h3>
 <details><summary>¿Qué modificaron del procesador o del SoC?</summary>
-<p>Dos cosas. Un contador de ciclos de 32 bits en <code>pochoco_periph.v</code>, legible en 0x8000000C, y el módulo <code>game_top.v</code> que instancia el SoC con <code>sw/game.hex</code>. El procesador mismo no se tocó. El primer commit del repo es el código original, así que <code>git diff</code> muestra exactamente el cambio.</p></details>
+<p>Tres cosas. Un contador de ciclos de 32 bits en <code>pochoco_periph.v</code>, legible en 0x8000000C. El módulo <code>game_top.v</code> que instancia el SoC con <code>sw/game.hex</code>. Y el reset de encendido en <code>pochoco_soc.v</code>, que pasó de 15 a 4.095 ciclos. El procesador mismo no se tocó. El primer commit del repo es el código original, así que <code>git diff</code> muestra exactamente los cambios.</p></details>
+
+<details><summary>¿Por qué alargaron el reset de encendido?</summary>
+<p>Con 15 ciclos, el procesador arrancaba antes de que la RAM de la FPGA entregara su contenido. Leía ceros, los ejecutaba como instrucciones sin efecto y, cuando la RAM respondía, estaba en la mitad del programa con los registros en cero. Los programas cortos se salvaban porque el contador de programa daba la vuelta y volvía a 0. Con 4.095 ciclos (164 µs) la RAM ya está lista.</p></details>
+
+<details><summary>Si todas las simulaciones pasaban, ¿cómo encontraron el problema?</summary>
+<p>En la placa, con programas de prueba. Uno que se detiene en cada marca mostró que fallaba antes de la tercera instrucción. Comparando bitstreams vimos que uno que funciona y uno que falla son idénticos salvo el contenido de la RAM, así que no era temporización. Simulando el bitstream reconstruido con icebox_vlog vimos que funcionaba, así que el problema era físico. El reset largo lo arregló.</p></details>
 
 <details><summary>¿Por qué un contador de hardware y no un bucle de espera?</summary>
 <p>Un bucle dura según cuántas instrucciones tiene y cuánto tarda cada una (2 o 3 ciclos). Cualquier cambio al programa lo descalibraría, y además no sirve para medir cuánto tardó alguien. El contador cuenta ciclos de reloj pase lo que pase en el programa.</p></details>
@@ -635,7 +672,7 @@ VERIFY OK</pre></div>
 <p>Vuelve a 0 cada 2<sup>32</sup> ciclos, 171,8 s. No importa, porque siempre se mide restando (ahora − inicio) en 32 bits sin signo, y esa resta da la cantidad correcta aunque haya dado la vuelta. Solo fallaría un intervalo de más de 171,8 s.</p></details>
 
 <details><summary>¿Cuánto espacio ocupa el contador? ¿Por qué no activaron los shifts?</summary>
-<p>96 celdas: el diseño pasó de 1063 a 1159 de 1280 (83% a 90%). Un desplazador de 32 bits costaría del orden de cien celdas más, y el juego se puede escribir sin shifts.</p></details>
+<p>96 celdas: con él y el reset alargado, el diseño pasó de 1063 a 1173 de 1280 (83% a 91%). Un desplazador de 32 bits costaría del orden de cien celdas más, y el juego se puede escribir sin shifts.</p></details>
 
 <details><summary>¿Cómo llega el programa a la FPGA?</summary>
 <p>La RAM de <code>pochoco_ram.v</code> tiene un <code>$readmemh(MemFile)</code>. Yosys lee <code>game.hex</code> al sintetizar y lo pone como contenido inicial de los bloques de RAM. El programa queda dentro del bitstream, y al encender el procesador parte ejecutando la dirección 0.</p></details>
@@ -644,7 +681,7 @@ VERIFY OK</pre></div>
 <p>2 ciclos las de ALU, <code>lui</code>, <code>sw</code> y los branches que no saltan. 3 los <code>lw</code>, los branches que saltan y los saltos. El banco de registros es una RAM de la FPGA que entrega el dato un ciclo después; los loads esperan uno más por la memoria; un salto descarta la instrucción que ya se estaba buscando.</p></details>
 
 <details><summary>¿A qué frecuencia funciona? ¿Cómo lo saben?</summary>
-<p>El reloj de la Go Board es de 25 MHz. nextpnr reporta una frecuencia máxima de unos 46 MHz para nuestro diseño, y el Makefile le pasa <code>--freq 25</code>, así que la compilación fallaría si no se alcanzaran los 25 MHz.</p></details>
+<p>El reloj de la Go Board es de 25 MHz. nextpnr reporta una frecuencia máxima de unos 43 MHz para nuestro diseño, y icetime, otro analizador independiente, da lo mismo, y el Makefile le pasa <code>--freq 25</code>, así que la compilación fallaría si no se alcanzaran los 25 MHz.</p></details>
 
 <h3>El juego</h3>
 <details><summary>¿Cómo convierten ciclos a décimas?</summary>
@@ -706,7 +743,7 @@ VERIFY OK</pre></div>
 <!-- ============================================================ -->
 <h2 id="pendiente"><span class="num">11</span>Lo que falta</h2>
 <ol class="steps">
-  <li>Probar en la placa real. Todo está verificado en simulación y sintetiza bien, pero nunca se ha programado una Go Board con este diseño. Revisa en especial que el botón de cada LED sea el que corresponde.</li>
+  <li>Jugar en la placa las cuatro cosas de la demo completas: la fase de 3 s, una ronda correcta, diez rondas con su promedio y un botón incorrecto. El juego ya arranca y responde en la Go Board.</li>
   <li>Subir el informe a Overleaf (el zip <code>informe-overleaf.zip</code>) y compilarlo. No hay LaTeX en este computador, así que no se ha compilado nunca.</li>
   <li>Revisar la declaración de uso de IA y firmarla. Las firmas quedaron en blanco a propósito: cada uno firma lo que declara.</li>
   <li>Confirmar los nombres de los ayudantes en la portada (se copiaron del Proyecto 1).</li>

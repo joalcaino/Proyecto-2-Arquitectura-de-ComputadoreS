@@ -3,8 +3,9 @@
 Se implementó el juego de reflejos completo sobre el Pochoco SoC: temporización de tres
 segundos, elección pseudoaleatoria del LED objetivo, medición del tiempo de respuesta
 en décimas de segundo, manejo de botones incorrectos y promedio de diez rondas. Todo
-el comportamiento se verificó en simulación sobre el RTL del SoC, y el diseño sintetiza
-para la iCE40 HX1K con margen de frecuencia.
+el comportamiento se verificó en simulación sobre el RTL del SoC y sobre el circuito
+sintetizado, el diseño sintetiza para la iCE40 HX1K con margen de frecuencia, y el juego
+funciona en la Go Board.
 
 El único cambio de hardware necesario fue un contador de ciclos de 32 bits. Con él, toda
 medición de tiempo se reduce a una resta sin signo, que además tolera que el contador
@@ -18,6 +19,13 @@ mismo criterio permitió implementar un LFSR sin desplazamientos. El modelo del
 generador mostró que el número de pasos entre elecciones importa: con pocos pasos el
 primer LED de cada partida era siempre el mismo, aunque la semilla viniera del
 contador.
+
+La prueba en la placa mostró el límite de la simulación. El juego pasaba todas las
+simulaciones, incluida la del circuito sintetizado, y aun así no arrancaba en la FPGA,
+porque el reset de encendido original soltaba al procesador antes de que la RAM
+estuviera disponible. Los modelos de simulación no representan ese retraso. La causa
+se aisló grabando programas de prueba cada vez más cercanos al juego y descartando una
+hipótesis por vez, y la corrección fue una línea de Verilog.
 
 En el assembler, el problema de fondo son las referencias hacia adelante: una etiqueta
 se usa antes de saber su dirección. Se resolvió con pasadas separadas para las

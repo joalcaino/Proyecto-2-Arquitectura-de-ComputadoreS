@@ -1,9 +1,9 @@
 \section{Verificación}
 \label{sec:verificacion}
 
-La verificación tiene cuatro niveles, de lo más aislado a lo más completo. Todas las
-pruebas son automáticas y se ejecutan con \code{make test}, \code{make sim} y
-\code{make sim-post}.
+La verificación tiene cuatro niveles en simulación, de lo más aislado a lo más completo,
+y termina en la placa. Las pruebas de simulación son automáticas y se ejecutan con
+\code{make test}, \code{make sim} y \code{make sim-post}.
 
 \subsection{Pruebas del assembler}
 
@@ -131,3 +131,73 @@ desde que empezaba a mirarla, y no desde que los LEDs cambiaban, así que report
 fases cortas que no lo eran. El segundo: cambiaba los botones en el mismo instante del
 flanco de reloj en que el SoC los lee, una carrera que hacía variar la semilla entre una
 compilación y otra. Se corrigió asignando los botones con asignación no bloqueante.
+
+\subsection{Prueba en la placa: el reset de encendido}
+\label{sec:placa}
+
+Con todas las simulaciones aprobadas, incluida la post-síntesis, el juego se programó en
+la Go Board y no funcionó: los LEDs no se encendían nunca. Como la simulación no
+reproducía la falla, se diagnosticó directamente en la placa, grabando programas de
+prueba y observando los LEDs (tabla~\ref{tab:placa}).
+
+\begin{table}[H]
+\centering
+\caption{Programas grabados en la placa durante el diagnóstico, con el reset original de 15 ciclos.}
+\label{tab:placa}
+\begin{tabularx}{\linewidth}{X c l}
+\toprule
+Programa & Palabras & En la placa \\
+\midrule
+\code{buttons\_leds.s} del repositorio original (ensamblado por GNU) & 7 & funciona \\
+Parpadeo con el contador de ciclos y conteo de botones & 18 & funciona \\
+El mismo, con 110 \code{nop} al final que nunca se ejecutan & 128 & funciona \\
+Escritura a LEDs justo después de escribir el registro & 11 & funciona \\
+\code{game.s} & 114 & falla \\
+\code{game.s} con marcas en los LEDs & 120 & falla \\
+\code{game.s} deteniéndose en cada marca hasta apretar un botón & 144 & falla \\
+\code{game.s} con la RAM de 256 palabras (bloques en modo $256\times16$) & 114 & falla \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El programa que se detiene en cada marca falló antes de su tercera instrucción, que
+escribe la primera marca en los LEDs. Se descartaron, en orden, estas causas:
+
+\begin{itemize}
+  \item \textbf{Temporización.} nextpnr e \code{icetime}, un analizador independiente de
+        IceStorm, dan más de 42~MHz en todos los casos. Además, el bitstream de un
+        programa que funciona y el de uno que falla resultaron idénticos bit a bit,
+        salvo el contenido inicial de la RAM: la lógica y el ruteo eran los mismos.
+  \item \textbf{Traducción del bitstream.} Se reconstruyó en Verilog el bitstream que
+        falla con \code{icebox\_vlog}, de IceStorm, y se simuló: el procesador enciende
+        la primera marca en el ciclo 22. También se verificó con \code{icepack -u} que el
+        \code{.bin} grabado es idéntico al \code{.asc}, y que nextpnr copia bit a bit el
+        contenido de la RAM que entrega Yosys.
+  \item \textbf{Modo de los bloques de RAM.} Con 512 palabras, Yosys usa los bloques en
+        modo $512\times8$, que reordena los bits del contenido inicial. Con 256 palabras
+        usa el modo $256\times16$, igual que el banco de registros, y el juego siguió
+        fallando.
+  \item \textbf{Dependencias entre instrucciones.} Un \code{sw} que usa el registro
+        escrito por la instrucción anterior funcionó en la placa.
+\end{itemize}
+
+La explicación que calza con todos los casos es el tiempo que tarda la RAM en estar
+disponible tras la configuración. El SoC original suelta el reset a los 15 ciclos,
+0,6~$\mu$s después de que la FPGA termina de configurarse. Si en ese momento los bloques
+de RAM todavía no entregan su contenido, el procesador busca instrucciones y recibe
+ceros, que el decodificador trata como instrucciones ilegales sin efecto. El contador
+de programa avanza, y cuando la RAM empieza a responder el procesador está en la mitad
+del programa, con todos los registros en cero. En particular, \code{s0} no contiene la
+dirección de los periféricos, y cada escritura a los LEDs cae en la RAM.
+
+Esto explica por qué funcionaban los programas cortos. Tras sus pocas instrucciones
+reales solo hay ceros o \code{nop}, el contador de programa da la vuelta al llegar a
+los 2~KB de la RAM, y el programa vuelve a empezar desde la dirección 0, esta vez con la
+RAM ya disponible. La diferencia son unos microsegundos, imperceptibles. En un programa
+largo, el procesador cae en medio de su código y queda atrapado en algún bucle que
+espera algo que nunca llega.
+
+La corrección fue mantener al procesador en reset durante 4.095 ciclos
+(código~\ref{lst:por}). Con ese cambio, y sin ningún otro, el juego funcionó en la placa.
+Ninguna simulación podía detectar el problema, porque los modelos de simulación de los
+bloques de RAM entregan su contenido desde el primer ciclo.

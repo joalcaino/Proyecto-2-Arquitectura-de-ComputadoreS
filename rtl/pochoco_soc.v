@@ -31,13 +31,17 @@ module pochoco_soc #(
   wire clk;
   assign clk = i_Clk;
 
-  // Power-on reset
-  reg  [3:0] por_cnt = 4'b0;
-  wire       rst_ni;
+  // Power-on reset: 4095 cycles (164 us at 25 MHz).
+  // The original 15 cycles (0.6 us) released the core before the iCE40 block
+  // RAMs could be read after configuration: the core fetched zeros, ran them as
+  // no-ops and started in the middle of any program longer than a few dozen
+  // words. Short programs survived only because the PC wrapped around to 0.
+  reg  [11:0] por_cnt = 12'b0;
+  wire        rst_ni;
   always @(posedge clk) begin
-    if (por_cnt != 4'hF) por_cnt <= por_cnt + 4'd1;
+    if (por_cnt != 12'hFFF) por_cnt <= por_cnt + 12'd1;
   end
-  assign rst_ni = (por_cnt == 4'hF);
+  assign rst_ni = (por_cnt == 12'hFFF);
 
   // Core-memory wiring
   wire        instr_req;

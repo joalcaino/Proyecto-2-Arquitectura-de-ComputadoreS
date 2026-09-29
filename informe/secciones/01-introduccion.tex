@@ -13,7 +13,8 @@ El trabajo tiene tres partes, que corresponden a las secciones de este informe:
   \item \textbf{Hardware} (sección~\ref{sec:arquitectura}). El SoC original no ofrece
         ninguna forma de medir tiempo. Se agregó un contador de ciclos de reloj que el
         programa puede leer, y un módulo superior \code{game\_top} que instancia el SoC
-        con la imagen de memoria del juego.
+        con la imagen de memoria del juego. Además se alargó el reset de encendido del
+        SoC, que en la placa impedía arrancar a cualquier programa largo.
   \item \textbf{Software} (secciones~\ref{sec:temporizacion} y~\ref{sec:programa}). El
         juego en \code{sw/game.s}: temporización de tres segundos, medición del tiempo
         de respuesta, conversión de ciclos a décimas de segundo, promedio de las diez

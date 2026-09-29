@@ -96,8 +96,11 @@ de siete segmentos. Tras diez respuestas correctas muestra el promedio.
 
 Para medir tiempo se agregó al SoC un contador de ciclos de 32 bits, mapeado en memoria
 en la dirección \code{0x8000000C}; el cambio ocupa 96 celdas lógicas y el diseño
-completo usa el 90\,\% de la FPGA, con una frecuencia máxima de 46~MHz frente a los
-25~MHz del reloj. Como el procesador no tiene multiplicación, división ni
+completo usa el 91\,\% de la FPGA, con una frecuencia máxima de 43~MHz frente a los
+25~MHz del reloj. Además se corrigió un defecto del SoC original que solo aparece en la
+placa: el reset de encendido liberaba al procesador antes de que los bloques de RAM
+pudieran leerse, y cualquier programa de más de unas decenas de palabras partía en la
+mitad de su código. Como el procesador no tiene multiplicación, división ni
 desplazamientos, las divisiones se hacen por restas sucesivas y el generador
 pseudoaleatorio, un LFSR de 32 bits, se construyó solo con sumas y comparaciones.
 

@@ -22,6 +22,7 @@ propio escrito en Python (`asm/pochoasm.py`), sin usar ningún assembler RISC-V 
 ```
 rtl/game_top.v         top-level que se sintetiza: instancia el SoC con sw/game.hex
 rtl/pochoco_periph.v   periféricos del SoC + el contador de ciclos que agregamos (0x8000000C)
+rtl/pochoco_soc.v      el SoC; alargamos su reset de encendido (ver abajo)
 rtl/...                resto del SoC y del core Espino, sin cambios
 sw/game.s              el juego, en assembly
 sw/game.hex            el juego en código de máquina (lo genera el assembler)
@@ -118,6 +119,12 @@ nextpnr-ice40 --hx1k --package vq100 --freq 25 --json game_top.json --pcf goboar
 icepack game_top.asc game_top.bin
 iceprog game_top.bin
 ```
+
+## El reset de encendido (defecto del SoC original)
+
+El SoC original soltaba el reset del procesador 15 ciclos (0,6 µs) después de configurarse la FPGA. En la Go Board eso es antes de que los bloques de RAM entreguen su contenido: el procesador leía ceros, los ejecutaba como instrucciones sin efecto y, cuando la RAM respondía, estaba en la mitad del programa con los registros en cero. Los programas de ejemplo funcionaban igual porque son cortos: el contador de programa daba la vuelta a los 2 KB y volvía a empezar. El juego, de 114 palabras, no arrancaba.
+
+En `rtl/pochoco_soc.v` el contador del reset pasó de 4 a 12 bits: el procesador arranca a los 4.095 ciclos (164 µs). Ninguna simulación detecta este problema, porque los modelos de la RAM entregan su contenido desde el primer ciclo. El diagnóstico completo está en el informe.
 
 ## Mapa de memoria
 
