@@ -49,8 +49,10 @@ docs/                  explicación completa del proyecto
 
 1. Abre la terminal de OSS CAD Suite. En Windows, en PowerShell:
    ```
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
    & "$HOME\oss-cad-suite\environment.ps1"
    ```
+   La primera línea permite ejecutar scripts solo en esa ventana; sin ella PowerShell responde "la ejecución de scripts está deshabilitada". Alternativa sin tocar nada: en `cmd`, ejecutar `%USERPROFILE%\oss-cad-suite\environment.bat`.
    En Linux: `source <ruta>/oss-cad-suite/environment`.
 2. Ve a la carpeta del proyecto y ejecuta:
    ```

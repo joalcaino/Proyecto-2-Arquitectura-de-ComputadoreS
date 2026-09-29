@@ -629,7 +629,7 @@ make sim    →  ISA: OK - las 22 pruebas pasaron
 <h3>Simulacro: cambiar una constante</h3>
 <p>Te van a pedir cambiar una constante, regenerar <code>game.hex</code> y volver a mostrarlo. Practícalo antes:</p>
 <ol class="steps">
-  <li>Abre la terminal de OSS CAD Suite: en PowerShell, <code>&amp; "$HOME\oss-cad-suite\environment.ps1"</code>.</li>
+  <li>Abre la terminal de OSS CAD Suite. En PowerShell, primero <code>Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force</code> (permite scripts solo en esa ventana) y después <code>&amp; "$HOME\oss-cad-suite\environment.ps1"</code>. En cmd basta <code>%USERPROFILE%\oss-cad-suite\environment.bat</code>.</li>
   <li>Ve a la carpeta del proyecto.</li>
   <li>En <code>sw/game.s</code>, cambia <code>.equ ROUNDS, 10</code> por <code>.equ ROUNDS, 3</code>.</li>
   <li>Ejecuta <code>make prog</code>.</li>
