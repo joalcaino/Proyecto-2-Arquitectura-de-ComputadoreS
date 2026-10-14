@@ -151,4 +151,3 @@ Avisa si el programa usa shifts: el Espino Core los decodifica pero los ejecuta 
 
 El SoC y el core Espino son de Nicolás Villegas (Universidad de los Andes), del repositorio
 [nic0villegasc/pochoco_soc](https://github.com/nic0villegasc/pochoco_soc), bajo licencia Solderpad 0.51.
-El primer commit de este repositorio es ese código sin modificar, así que `git diff` desde ahí muestra exactamente qué cambiamos.
