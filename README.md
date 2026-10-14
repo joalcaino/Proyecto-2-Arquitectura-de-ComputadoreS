@@ -35,7 +35,7 @@ sim/game_tb.v          testbench que juega dos partidas completas y revisa cada 
 goboard.pcf            pines de la Go Board
 pochoco_soc.svg        diagrama del SoC (del repositorio original)
 game_top.bin           bitstream ya compilado (respaldo para la demo)
-informe/               informe en LaTeX
+Proyecto_2_Arquitectura_de_Computadores.pdf   informe del proyecto
 docs/                  explicación completa del proyecto
 ```
 
@@ -151,3 +151,4 @@ Avisa si el programa usa shifts: el Espino Core los decodifica pero los ejecuta 
 
 El SoC y el core Espino son de Nicolás Villegas (Universidad de los Andes), del repositorio
 [nic0villegasc/pochoco_soc](https://github.com/nic0villegasc/pochoco_soc), bajo licencia Solderpad 0.51.
+El commit `a19188b` de este repositorio es ese código sin modificar, así que `git diff a19188b HEAD -- rtl` muestra exactamente qué cambiamos en el hardware.

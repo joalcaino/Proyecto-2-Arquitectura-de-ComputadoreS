@@ -205,7 +205,7 @@ footer { margin-top: 72px; padding-top: 16px; border-top: 1px solid var(--line);
 <tr><td class="mono">asm/test_pochoasm.py</td><td>20 pruebas del assembler.</td></tr>
 <tr><td class="mono">sim/</td><td>Simulaciones: una prueba de cada instrucción y dos partidas completas del juego.</td></tr>
 <tr><td class="mono">Makefile</td><td>Un comando para cada cosa: <code>make prog</code>, <code>make hex</code>, <code>make test</code>, <code>make sim</code>.</td></tr>
-<tr><td class="mono">informe/</td><td>El informe en LaTeX, para subir a Overleaf.</td></tr>
+<tr><td class="mono">Proyecto_2_Arquitectura_de_Computadores.pdf</td><td>El informe del proyecto.</td></tr>
 </table></div>
 
 <h3>Cómo viaja el programa hasta la placa</h3>
@@ -657,7 +657,7 @@ VERIFY OK</pre></div>
 <div class="qa">
 <h3>Hardware</h3>
 <details><summary>¿Qué modificaron del procesador o del SoC?</summary>
-<p>Tres cosas. Un contador de ciclos de 32 bits en <code>pochoco_periph.v</code>, legible en 0x8000000C. El módulo <code>game_top.v</code> que instancia el SoC con <code>sw/game.hex</code>. Y el reset de encendido en <code>pochoco_soc.v</code>, que pasó de 15 a 4.095 ciclos. El procesador mismo no se tocó. El primer commit del repo es el código original, así que <code>git diff</code> muestra exactamente los cambios.</p></details>
+<p>Tres cosas. Un contador de ciclos de 32 bits en <code>pochoco_periph.v</code>, legible en 0x8000000C. El módulo <code>game_top.v</code> que instancia el SoC con <code>sw/game.hex</code>. Y el reset de encendido en <code>pochoco_soc.v</code>, que pasó de 15 a 4.095 ciclos. El procesador mismo no se tocó. El commit <code>a19188b</code> del repo es el código original, así que <code>git diff a19188b HEAD -- rtl</code> muestra exactamente los cambios.</p></details>
 
 <details><summary>¿Por qué alargaron el reset de encendido?</summary>
 <p>Con 15 ciclos, el procesador arrancaba antes de que la RAM de la FPGA entregara su contenido. Leía ceros, los ejecutaba como instrucciones sin efecto y, cuando la RAM respondía, estaba en la mitad del programa con los registros en cero. Los programas cortos se salvaban porque el contador de programa daba la vuelta y volvía a 0. Con 4.095 ciclos (164 µs) la RAM ya está lista.</p></details>
@@ -744,10 +744,6 @@ VERIFY OK</pre></div>
 <h2 id="pendiente"><span class="num">11</span>Lo que falta</h2>
 <ol class="steps">
   <li>Jugar en la placa las cuatro cosas de la demo completas: la fase de 3 s, una ronda correcta, diez rondas con su promedio y un botón incorrecto. El juego ya arranca y responde en la Go Board.</li>
-  <li>Subir el informe a Overleaf (el zip <code>informe-overleaf.zip</code>) y compilarlo. No hay LaTeX en este computador, así que no se ha compilado nunca.</li>
-  <li>Revisar la declaración de uso de IA y firmarla. Las firmas quedaron en blanco a propósito: cada uno firma lo que declara.</li>
-  <li>Confirmar los nombres de los ayudantes en la portada (se copiaron del Proyecto 1).</li>
-  <li>Crear el repo en GitHub y hacer push. El historial local ya tiene los commits.</li>
 </ol>
 
 <footer>Proyecto 2, Arquitectura de Computadores 2026-2, Universidad de los Andes. El SoC y el core Espino son de Nicolás Villegas (nic0villegasc/pochoco_soc).</footer>
